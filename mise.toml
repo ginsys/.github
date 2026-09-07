@@ -48,7 +48,7 @@ for a in "$@"; do
     *) echo "settings-audit: '$a' not accepted; only --ci and --json are forwarded (apply is a workflow dispatch, never local)" >&2; exit 1 ;;
   esac
 done
-GITHUB_ORG=ginsys GITHUB_REPOS_DEFAULT=bronzeward GITHUB_REPOS=bronzeward \
+GITHUB_ORG=ginsys GITHUB_REPOS_DEFAULT=".github bronzeward" GITHUB_REPOS=".github bronzeward" \
 LABELS_FILE="$PWD/standards/labels.json" POLICY_FILE="$PWD/governance/repository-settings-policy.yaml" \
 bash upstream/scripts/github-settings.sh --all "$@"
 """
