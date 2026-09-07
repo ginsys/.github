@@ -5,9 +5,12 @@ go-kure/.github. Read `README.md` first: it states what lives here and what live
 
 ## Rules
 
-- **Nothing upstream is copied here.** The settings script, the action-pin checker, the PR-review
-  reusable workflow and the Renovate preset are used from go-kure/.github at `main`. A change to
-  their behaviour is an upstream PR, never a local fork.
+- **Nothing upstream is copied here, with one documented exception.** The settings script, the
+  action-pin checker and the Renovate preset are used from go-kure/.github at `main`. A change to
+  their behaviour is an upstream PR, never a local fork. The exception is `pr-review.yml`: the job
+  wrapper is a ginsys copy because a called workflow cannot use this org's runners (header of that
+  file); the review logic it runs is still upstream's `pr-review-threads` action at a pinned commit.
+  Keep the wrapper in step with go-kure's `.github/workflows/pr-review.yml` when bumping that pin.
 - **Every third-party action is pinned to a 40-character commit SHA**, tag as a trailing comment.
   `ci.yml`'s `action-pins` job enforces it. First-party reusable *workflows* (`go-kure/...` and
   `ginsys/...` under `.github/workflows/`) may use `@main`; composite actions may not.
@@ -34,6 +37,7 @@ mistake.
 .github/workflows/
   settings.yml        daily audit / manual apply, runs go-kure's script from upstream/
   tracker-audit.yml   reusable issue-tracker audit (workflow_call)
+  pr-review.yml       reusable Claude PR review (workflow_call), runs upstream's action on ginsys runners
   ci.yml              this repo's checks; `checks` aggregates them
 governance/
   repository-settings-policy.yaml

@@ -2,10 +2,14 @@
 
 Org-level standards for the ginsys GitHub organization: the repository settings policy, the issue
 label set, and the reusable workflows managed repos call. It is a **thin consumer** of
-[go-kure/.github](https://github.com/go-kure/.github): the settings script, the PR-review reusable
-workflow, the action-pin checker and the Renovate preset live upstream and are used at `main`
-(first-party reusables at a mutable ref is go-kure's own pinning policy); only ginsys-owned
-configuration lives here.
+[go-kure/.github](https://github.com/go-kure/.github): the settings script, the action-pin checker
+and the Renovate preset live upstream and are used at `main` (first-party reusables at a mutable
+ref is go-kure's own pinning policy); only ginsys-owned configuration lives here. The one upstream
+job carried here rather than called is the Claude PR review (`pr-review.yml`): a called workflow
+reaches the caller's self-hosted runners only when both share an owner, so a ginsys repo calling
+go-kure's reusable could not land on `autops-kube-ginsys`, the only runners that reach the in-cluster
+claude proxy. The job body is go-kure's; the review logic stays upstream as the `pr-review-threads`
+composite action, pinned to a commit.
 
 Managed repos: this one and [`bronzeward`](https://github.com/ginsys/bronzeward). Onboarding
 another is a policy edit ("Onboarding a repo" below), not new tooling. This repo governs itself
@@ -23,6 +27,7 @@ weekly by `tracker-audit-self.yml`. Not done for this repo: the Claude `pr-revie
 | `.github/workflows/settings.yml` | Daily audit of the managed repos; `apply` by manual dispatch |
 | `.github/workflows/tracker-audit.yml` | Reusable, report-only issue-tracker hygiene audit |
 | `.github/workflows/tracker-audit-self.yml` | This repo's weekly caller of it |
+| `.github/workflows/pr-review.yml` | Reusable Claude PR review: go-kure's job wrapper on ginsys runners, upstream's `pr-review-threads` action pinned |
 | `scripts/tracker-audit.sh` | The audit itself, fixture-tested by `scripts/test/tracker-audit-test.sh` |
 | `.github/workflows/ci.yml` | This repo's own checks: lint, tests, action pins |
 | `profile/README.md` | Organization profile |
@@ -70,7 +75,12 @@ Read back with `gh api orgs/ginsys/actions/runner-groups/1`,
 5. In the repo: a `renovate.json` extending `github>go-kure/.github//renovate/shared`, a caller of
    `tracker-audit.yml` (auditing a *different* repo's tracker needs the `token` secret — the
    caller's `GITHUB_TOKEN` only reads its own issues), and, for the Claude review, a caller of
-   go-kure's `pr-review.yml` with `runs-on: autops-kube-ginsys`.
+   this repo's `pr-review.yml` (`uses: ginsys/.github/.github/workflows/pr-review.yml@main`, with
+   `pr_review_context` set and `merge_group:` among its triggers so a required context still
+   reports in a queue). The mode is the repo variable `PR_REVIEW_THREADS_MODE`: unset or
+   `advisory` posts one review comment and creates no threads; `enforce` creates a resolvable
+   thread per finding; `off` skips the job. `enforce` also needs a human-owned actor for thread
+   resolution — see the header of `pr-review.yml`.
 
 ## Local checks
 

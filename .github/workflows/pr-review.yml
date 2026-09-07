@@ -1,0 +1,106 @@
+# Automated PR review — reusable workflow, ginsys copy of go-kure/.github's pr-review.yml.
+#
+# Why a copy and not a caller of go-kure's: a called workflow's jobs run on the CALLER's
+# self-hosted runners only when caller and called workflow share an owner (GitHub docs, "Reusing
+# workflows" → "Using self-hosted runners"). A ginsys repo calling go-kure/.github's reusable
+# therefore cannot land on `autops-kube-ginsys`, and the review needs an in-cluster runner to reach
+# the claude proxy. The job body is otherwise go-kure's; the review logic itself is not copied — it
+# is the upstream `pr-review-threads` composite action, pinned to a commit like any other action.
+#
+# Backend: the in-cluster claude proxy at http://claude-proxy.claude-proxy.svc:3456 (an
+# OpenAI-compatible /v1/chat/completions endpoint using the host's Claude Max credentials; no API
+# key secret). Reachable from `autops-kube-ginsys` runners only.
+#
+# Findings: in `advisory` mode the action posts one review comment and creates no threads; in
+# `enforce` mode each finding becomes a resolvable review thread that
+# `required_review_thread_resolution` then gates on. The mode comes from the CALLER repo's
+# `PR_REVIEW_THREADS_MODE` variable (a `vars.*` lookup in a reusable workflow resolves against the
+# caller's repository and organization); unset means `advisory`. `off` skips the job entirely —
+# the incident escape hatch, checked here so a checkout or tool-install failure is also skipped.
+#
+# Thread resolution needs a human-owned actor: GitHub refuses `resolveReviewThread` for
+# `github-actions[bot]` regardless of scope (go-kure/.github#68). With `github.token` the action
+# can create threads but never auto-resolve them, so `enforce` on a ginsys repo needs a
+# fine-grained PAT of a machine-user account passed in place of `github.token` below (and its
+# login in `bot-login`) — a change to this file, deliberately, not a per-repo secret lookup.
+#
+# The `if:` excludes fork PRs (the proxy is not for third parties) but not drafts: a draft is
+# where convergence happens, so the review runs there too.
+
+name: PR Review
+
+on:
+  workflow_call:
+    inputs:
+      pr_review_context:
+        description: 'Project context injected into the review system prompt'
+        type: string
+        required: false
+        default: ''
+
+concurrency:
+  group: pr-review-threads-${{ github.repository }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  pr-review:
+    name: AI Code Review
+    runs-on: autops-kube-ginsys
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      vars.PR_REVIEW_THREADS_MODE != 'off'
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+
+    env:
+      CCPROXY_URL: "http://claude-proxy.claude-proxy.svc:3456"
+      PR_REVIEW_MODEL: "claude-opus-4"
+      PR_REVIEW_MAX_DIFF_CHARS: "50000"
+      PR_REVIEW_MAX_TOKENS: "1500"
+      PR_REVIEW_CONTEXT: ${{ inputs.pr_review_context }}
+      PR_REVIEW_ASSESS_MODEL: "claude-sonnet-4-6"
+      PR_REVIEW_ASSESS_MAX_TOKENS: "4096"
+      PR_REVIEW_AGENTS_FILE: "AGENTS.md"
+      # Resolved against go-kure/.github's checkout at the pinned action commit, not the caller's:
+      # the reviewer reads go-kure's standards, which this org adopts.
+      PR_REVIEW_STANDARDS_FILE: "docs/standards.md"
+      PR_REVIEW_THREADS_MODE: "advisory"
+      PR_REVIEW_MAX_FINDINGS_TOTAL: "5"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Setup tools
+        run: |
+          for cmd in curl jq; do
+            if ! command -v "$cmd" &>/dev/null; then
+              if command -v sudo &>/dev/null; then
+                sudo apt-get update -qq && sudo apt-get install -y -qq curl jq
+              else
+                apt-get update -qq && apt-get install -y -qq curl jq
+              fi
+              break
+            fi
+          done
+
+      - name: Run PR review threads
+        uses: go-kure/.github/.github/actions/pr-review-threads@ae10bfb8f99fd5ddcee3185d1a420be14b201e3c # main 2026-09-07 (go-kure/.github#154 merge)
+        with:
+          github-token: ${{ github.token }}
+          pr-number: ${{ github.event.pull_request.number }}
+          head-sha: ${{ github.event.pull_request.head.sha }}
+          mode: ${{ vars.PR_REVIEW_THREADS_MODE || env.PR_REVIEW_THREADS_MODE }}
+          proxy-url: ${{ env.CCPROXY_URL }}
+          bot-login: 'github-actions[bot]'
+          model: ${{ env.PR_REVIEW_MODEL }}
+          max-tokens: ${{ env.PR_REVIEW_MAX_TOKENS }}
+          assess-model: ${{ env.PR_REVIEW_ASSESS_MODEL }}
+          assess-max-tokens: ${{ env.PR_REVIEW_ASSESS_MAX_TOKENS }}
+          max-diff-chars: ${{ env.PR_REVIEW_MAX_DIFF_CHARS }}
+          max-findings-total: ${{ env.PR_REVIEW_MAX_FINDINGS_TOTAL }}
+          project-context: ${{ env.PR_REVIEW_CONTEXT }}
+          agents-file: ${{ env.PR_REVIEW_AGENTS_FILE }}
+          standards-file: ${{ env.PR_REVIEW_STANDARDS_FILE }}
