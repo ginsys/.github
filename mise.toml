@@ -1,0 +1,48 @@
+[tools]
+# ci.yml installs from this list (jdx/mise-action), so a bump here is the only edit needed.
+actionlint = "1.7.12"
+shellcheck = "0.11.0"
+jq = "1.8.2"
+# go-kure's settings script reads its policy with mikefarah yq; same pin as upstream.
+yq = "4.53.6"
+
+[tasks.lint]
+description = "actionlint on the workflows, shellcheck on the scripts"
+# job.workflow_repository / job.workflow_sha are documented (GitHub contexts reference, "job"
+# context) but not yet in actionlint 1.7.12's schema; drop the -ignore once a release knows them.
+run = """
+actionlint -ignore 'property "workflow_(repository|sha)" is not defined in object type'
+shellcheck scripts/*.sh scripts/test/*.sh
+"""
+
+[tasks.test]
+description = "Fixture tests for scripts/tracker-audit.sh"
+run = "bash scripts/test/tracker-audit-test.sh"
+
+[tasks.upstream-sync]
+description = "Clone or fast-forward go-kure/.github into upstream/ (gitignored)"
+run = """
+if [ -d upstream/.git ]; then
+  git -C upstream pull --ff-only --quiet
+else
+  git clone --quiet --depth 1 https://github.com/go-kure/.github upstream
+fi
+"""
+
+[tasks.action-pins]
+description = "Every third-party action ref is a 40-char commit SHA (go-kure's checker)"
+depends = ["upstream-sync"]
+run = "FIRST_PARTY_WORKFLOW_RE='^(go-kure|ginsys)/[^/]+/\\.github/workflows/[^@]+@' bash upstream/scripts/check-action-pins.sh ."
+
+[tasks.settings-audit]
+description = "Read-only audit of the managed repos against the policy, with your own gh credentials"
+depends = ["upstream-sync"]
+run = """
+GITHUB_ORG=ginsys GITHUB_REPOS_DEFAULT=bronzeward GITHUB_REPOS=bronzeward \
+LABELS_FILE="$PWD/standards/labels.json" POLICY_FILE="$PWD/governance/repository-settings-policy.yaml" \
+bash upstream/scripts/github-settings.sh --all "$@"
+"""
+
+[tasks.verify]
+description = "Everything ci.yml runs"
+depends = ["lint", "test", "action-pins"]

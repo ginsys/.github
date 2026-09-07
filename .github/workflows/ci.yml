@@ -1,0 +1,66 @@
+name: CI
+
+# This repo's own checks. `checks` is the aggregator a ruleset can require once one exists here.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  merge_group:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MISE_EXEC_AUTO_INSTALL: "false"
+
+jobs:
+  lint:
+    runs-on: autops-kube-ginsys
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          install_args: actionlint shellcheck
+      - run: mise run lint
+
+  test:
+    runs-on: autops-kube-ginsys
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          install_args: jq
+      - run: mise run test
+
+  action-pins:
+    runs-on: autops-kube-ginsys
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      # go-kure's checker. A composite action is pinned to a commit like any third-party action;
+      # only reusable *workflows* are exempt, mirroring GitHub's sha_pinning_required boundary.
+      - uses: go-kure/.github/.github/actions/check-action-pins@f76dc32c6e0055d51fe27749d8e3d6ea38c85713 # main 2026-09-07
+
+  checks:
+    # Aggregator: fails on any failed or cancelled job, so one required context covers them all.
+    if: always()
+    needs: [lint, test, action-pins]
+    runs-on: autops-kube-ginsys
+    timeout-minutes: 2
+    steps:
+      - name: Fail unless every job succeeded
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "$RESULTS"
+          if echo "$RESULTS" | grep -Eq '"result": "(failure|cancelled|skipped)"'; then
+            exit 1
+          fi
