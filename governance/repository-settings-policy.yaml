@@ -81,10 +81,11 @@ github_repos:
       # minus the release-bot bypass actor bronzeward has no use for yet.
       main-protection:
         target: branch
-        # disabled until bronzeward's CI has reported both required contexts on a real PR.
-        # Flipping to active is its own PR: the audit then shows exactly one WRONG line and
-        # apply PUTs the existing ruleset in place.
-        enforcement: disabled
+        # Active since both required contexts reported on a real PR (ginsys/bronzeward#33):
+        # `checks` on its CI run and `pr-review / AI Code Review` on its PR Review run. The
+        # ruleset was created disabled by the first apply (id 22481160); this flip is applied
+        # by PUT in place. Rollback is the same one-word change back to `disabled`.
+        enforcement: active
         conditions:
           ref_name:
             include: ["refs/heads/main"]
@@ -104,7 +105,7 @@ github_repos:
             strict: false
             contexts:
               - checks                      # bronzeward ci.yml aggregator job
-              - pr-review / AI Code Review  # go-kure/.github pr-review.yml reusable
+              - pr-review / AI Code Review  # ginsys/.github pr-review.yml reusable (caller job `pr-review`)
           merge_queue:
             merge_method: REBASE
             grouping_strategy: ALLGREEN
@@ -114,9 +115,8 @@ github_repos:
             min_entries_to_merge_wait_minutes: 0
             check_response_timeout_minutes: 60
       # Copilot code review, declared disabled so enabling it later is a one-word policy change.
-      # bronzeward had no rulesets before, so the first apply creates this one; if GitHub
-      # rejects the copilot_code_review rule type on this plan, drop the block rather than
-      # carry a permanent MISSING.
+      # Created by the first apply (id 22481159): GitHub accepts the copilot_code_review rule
+      # type on this plan.
       "Code Quality Copilot review for default branch":
         target: branch
         enforcement: disabled
