@@ -7,8 +7,10 @@ workflow, the action-pin checker and the Renovate preset live upstream and are u
 (first-party reusables at a mutable ref is go-kure's own pinning policy); only ginsys-owned
 configuration lives here.
 
-Managed repos: [`bronzeward`](https://github.com/ginsys/bronzeward). Onboarding another is a policy
-edit ("Onboarding a repo" below), not new tooling.
+Managed repos: this one and [`bronzeward`](https://github.com/ginsys/bronzeward). Onboarding
+another is a policy edit ("Onboarding a repo" below), not new tooling. This repo governs itself
+with the same defaults (rebase-only merges, auto-merge, delete on merge) and a non-queue
+`main-protection` ruleset requiring the `checks` context, up to date.
 
 ## What is here
 
@@ -46,7 +48,7 @@ Not modelled by the policy schema; recorded so they can be re-checked. Set 2026-
 |---|---|---|
 | Runner group `Default` (id 1) | `visibility: selected` with an explicit repository allow-list; `allows_public_repositories: true` | The in-cluster runners must not be reachable from every repo in the org, and the Free plan allows no second group. The current membership is whatever the read-back below returns; it is not restated here |
 | Fork-PR approval (org) | `all_external_contributors` | Every fork PR waits for approval before its workflows run on the cluster |
-| `bronzeward` Actions | `sha_pinning_required: true`, `default_workflow_permissions: read`, `can_approve_pull_request_reviews: false` | Repo-level on purpose: the org-level flag would break a repo that pins actions by major tag |
+| `bronzeward` and `.github` Actions | `sha_pinning_required: true`, `default_workflow_permissions: read`, `can_approve_pull_request_reviews: false` | Repo-level on purpose: the org-level flag would break a repo that pins actions by major tag. Reusable workflows are exempt from SHA pinning, so this repo's own `go-kure/.github@main` callers keep working |
 
 Read back with `gh api orgs/ginsys/actions/runner-groups/1`,
 `gh api orgs/ginsys/actions/permissions/fork-pr-contributor-approval` and

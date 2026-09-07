@@ -67,8 +67,8 @@ jobs:
           # Exported in the shell rather than under env: — GitHub reserves the GITHUB_ prefix
           # for its own variables and rejects it in a workflow env block.
           export GITHUB_ORG=ginsys
-          export GITHUB_REPOS_DEFAULT=bronzeward
-          export GITHUB_REPOS=bronzeward
+          export GITHUB_REPOS_DEFAULT=".github bronzeward"
+          export GITHUB_REPOS=".github bronzeward"
           export LABELS_FILE="$PWD/standards/labels.json"
           export POLICY_FILE="$PWD/governance/repository-settings-policy.yaml"
           FLAGS=(--ci --json)
