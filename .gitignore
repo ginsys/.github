@@ -1,0 +1,5 @@
+# go-kure/.github checkout made by `mise run upstream-sync` and by settings.yml
+upstream/
+# settings-script output
+github-settings-report.json
+settings-output.txt

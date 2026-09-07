@@ -1,0 +1,162 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "description": "Issue labels for ginsys repos managed from ginsys/.github. See labels.md for the conventions.",
+  "labels": [
+    {
+      "name": "type/investigation",
+      "color": "#1D76DB",
+      "description": "Reproducible evidence to evaluate alternatives and enable a decision",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "type/decision",
+      "color": "#1D76DB",
+      "description": "Owner decision with recorded rationale and consequences",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "type/specification",
+      "color": "#1D76DB",
+      "description": "Detailed contracts grounded in accepted design and evidence",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "type/implementation",
+      "color": "#1D76DB",
+      "description": "Implementation of a refined and approved work item",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "type/validation",
+      "color": "#1D76DB",
+      "description": "Evidence review or integrated acceptance assessment",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "type/bug",
+      "color": "#1D76DB",
+      "description": "Defect in shipped behaviour; used once code ships",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "type/feature",
+      "color": "#1D76DB",
+      "description": "New capability in shipped code; used once code ships",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "status/in-progress",
+      "color": "#FEF2C0",
+      "description": "Responsibility accepted and work underway; exclusive with needs-review",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "status/needs-review",
+      "color": "#FEF2C0",
+      "description": "Ready for owner or designated review; exclusive with in-progress",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "status/needs-refinement",
+      "color": "#FEF2C0",
+      "description": "Implementation detail or acceptance verification still needs refinement",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "area/api",
+      "color": "#5319E7",
+      "description": "Management API and UI: auth, RBAC, drafts, review, releases, operations, inventory",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "area/database",
+      "color": "#5319E7",
+      "description": "Application database: inventory, YAML sources, profiles, revisions, assignments, journals",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "area/secrets",
+      "color": "#5319E7",
+      "description": "Secret/crypto providers: Talos secret bundles, credentials, enrolment signing, Transit",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "area/compiler",
+      "color": "#5319E7",
+      "description": "Configuration compiler: fragments, secret generation, pinned Talos contract, full config",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "area/publisher",
+      "color": "#5319E7",
+      "description": "Release publisher: immutable releases, encrypted per-machine artifacts, diffs, provenance",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "area/operations",
+      "color": "#5319E7",
+      "description": "Operation engine: intent, dispatch and evidence journals; resumable apply and lifecycle",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "area/transport",
+      "color": "#5319E7",
+      "description": "Machine transport layer: direct TCP, SideroLink or site relay to the Talos API",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "area/observer",
+      "color": "#5319E7",
+      "description": "Kubernetes observer: drain, Node readiness, PDB failures, cluster health",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "area/observability",
+      "color": "#5319E7",
+      "description": "Observability and audit: metrics, events, machine logs, operation timeline, audit records",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "area/design",
+      "color": "#5319E7",
+      "description": "Design documents and research under docs/design",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "area/docs",
+      "color": "#5319E7",
+      "description": "Repository documentation outside docs/design: README, CONTRIBUTING, AGENTS",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "area/ci",
+      "color": "#5319E7",
+      "description": "Workflows, checks, repo tooling and org-standards consumption",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "dependencies",
+      "color": "#0366D6",
+      "description": "Dependency updates",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "needs-human",
+      "color": "#D93F0B",
+      "description": "Renovate: update needs human review before merge",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "unattended",
+      "color": "#0E8A16",
+      "description": "Renovate: update eligible for automerge without review",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "security",
+      "color": "#EE0701",
+      "description": "Renovate: update fixes a known vulnerability (vulnerabilityAlerts)",
+      "repos": ["bronzeward"]
+    }
+  ]
+}

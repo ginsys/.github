@@ -1,0 +1,104 @@
+# GitHub repository settings for the ginsys organization.
+#
+# Read by go-kure/.github's scripts/github-settings.sh — this org keeps no copy of the script.
+# .github/workflows/settings.yml checks out go-kure/.github@main into upstream/ and runs it with
+# GITHUB_ORG=ginsys, GITHUB_REPOS_DEFAULT/GITHUB_REPOS naming the managed repos, POLICY_FILE
+# pointing here and LABELS_FILE at standards/labels.json. Schema and semantics are the upstream
+# file's (go-kure/.github governance/repository-settings-policy.yaml); only the values are ours.
+#
+# Managed repos: bronzeward. The org's other repos are not managed yet; each is its own
+# onboarding (README.md, "Onboarding a repo").
+
+github_defaults:
+  # The scalar keys below must match the script's SETTING_KEYS exactly — its validation rejects
+  # a missing or extra key — so this block is the upstream key set verbatim; only values differ.
+  allow_rebase_merge: true
+  allow_squash_merge: false
+  allow_merge_commit: false
+  delete_branch_on_merge: true
+  allow_update_branch: true
+  has_wiki: false
+  allow_auto_merge: true
+  has_projects: true
+  has_issues: true
+  has_discussions: false
+  has_downloads: false
+  is_template: false
+  allow_forking: true
+  web_commit_signoff_required: false
+  # Inert while allow_merge_commit is false; recorded so the audit matches live reality.
+  merge_commit_title: MERGE_MESSAGE
+  merge_commit_message: PR_TITLE
+  squash_merge_commit_title: COMMIT_OR_PR_TITLE
+  squash_merge_commit_message: COMMIT_MESSAGES
+  security:
+    secret_scanning: enabled
+    secret_scanning_push_protection: enabled
+    # Renovate's vulnerabilityAlerts lane (go-kure/.github renovate/shared.json, extended by
+    # every managed repo's renovate.json) covers this; Dependabot security PRs would duplicate it.
+    dependabot_security_updates: disabled
+  # An empty map, never absent: the script's check_requirements exits when the key is missing.
+  # Every ruleset in this org is repo-scoped under github_repos.<repo>.rulesets — a ruleset here
+  # would need a repos: scope that is re-edited on every onboarding.
+  rulesets: {}
+
+github_repos:
+  bronzeward:
+    has_discussions: true
+    rulesets:
+      # Repo-only ruleset (no github_defaults entry), so it carries target, enforcement,
+      # conditions and the full rule set itself — nothing is inherited. The shape is
+      # go-kure/kure's main-protection (merge queue, REBASE, ALLGREEN, one entry at a time)
+      # minus the release-bot bypass actor bronzeward has no use for yet.
+      main-protection:
+        target: branch
+        # disabled until bronzeward's CI has reported both required contexts on a real PR.
+        # Flipping to active is its own PR: the audit then shows exactly one WRONG line and
+        # apply PUTs the existing ruleset in place.
+        enforcement: disabled
+        conditions:
+          ref_name:
+            include: ["refs/heads/main"]
+        rules:
+          deletion: true
+          non_fast_forward: true
+          required_linear_history: true
+          pull_request:
+            required_approving_review_count: 0
+            dismiss_stale_reviews_on_push: false
+            require_code_owner_review: false
+            require_last_push_approval: false
+            required_review_thread_resolution: true
+          required_status_checks:
+            # strict: false — the merge queue tests the real merged result, so up-to-date
+            # enforcement on the PR branch would only add rebases.
+            strict: false
+            contexts:
+              - checks                      # bronzeward ci.yml aggregator job
+              - pr-review / AI Code Review  # go-kure/.github pr-review.yml reusable
+          merge_queue:
+            merge_method: REBASE
+            grouping_strategy: ALLGREEN
+            min_entries_to_merge: 1
+            max_entries_to_merge: 1
+            max_entries_to_build: 1
+            min_entries_to_merge_wait_minutes: 0
+            check_response_timeout_minutes: 60
+      # Copilot code review, declared disabled so enabling it later is a one-word policy change.
+      # bronzeward had no rulesets before, so the first apply creates this one; if GitHub
+      # rejects the copilot_code_review rule type on this plan, drop the block rather than
+      # carry a permanent MISSING.
+      "Code Quality Copilot review for default branch":
+        target: branch
+        enforcement: disabled
+        conditions:
+          ref_name:
+            include: ["~DEFAULT_BRANCH"]
+        rules:
+          copilot_code_review:
+            review_on_push: true
+            review_draft_pull_requests: true
+
+# No github_org block: the script's --org path needs a token with admin:org, which the
+# repo-scoped SETTINGS_PAT does not carry. Org-level settings (runner group scope, fork-PR
+# approval, per-repo Actions permissions) are applied by hand and recorded in README.md.

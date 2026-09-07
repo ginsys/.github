@@ -1,0 +1,72 @@
+# ginsys/.github
+
+Org-level standards for the ginsys GitHub organization: the repository settings policy, the issue
+label set, and the reusable workflows managed repos call. It is a **thin consumer** of
+[go-kure/.github](https://github.com/go-kure/.github): the settings script, the PR-review reusable
+workflow, the action-pin checker and the Renovate preset live upstream and are used at `main`
+(first-party reusables at a mutable ref is go-kure's own pinning policy); only ginsys-owned
+configuration lives here.
+
+Managed repos: [`bronzeward`](https://github.com/ginsys/bronzeward). Onboarding another is a policy
+edit ("Onboarding a repo" below), not new tooling.
+
+## What is here
+
+| Path | Purpose |
+|---|---|
+| `governance/repository-settings-policy.yaml` | Repo settings, security settings and rulesets, in go-kure's schema |
+| `standards/labels.json`, `standards/labels.md` | Label set and the conventions behind it |
+| `.github/workflows/settings.yml` | Daily audit of the managed repos; `apply` by manual dispatch |
+| `.github/workflows/tracker-audit.yml` | Reusable, report-only issue-tracker hygiene audit |
+| `scripts/tracker-audit.sh` | The audit itself, fixture-tested by `scripts/test/tracker-audit-test.sh` |
+| `.github/workflows/ci.yml` | This repo's own checks: lint, tests, action pins |
+| `profile/README.md` | Organization profile |
+
+## Settings flow
+
+1. `settings.yml` runs daily at 06:00 UTC and on every push to `governance/` or `standards/`, in
+   **audit** mode: it reports drift in the job summary and fails the run, changing nothing.
+2. Changes are applied by dispatching it with `mode=apply`
+   (`gh workflow run settings.yml -R ginsys/.github -f mode=apply`) after reading an audit.
+3. `apply` is destructive for labels: a live label not declared in `standards/labels.json` is
+   deleted. Snapshot first: `gh label list -R ginsys/<repo> --json name,color,description`.
+
+The workflow needs the `SETTINGS_PAT` repository secret: a fine-grained personal access token
+owned by the org, scoped to the managed repos, with Administration and Issues read/write and
+Metadata read. It has no `admin:org` scope, which is why the policy declares no `github_org` block
+and the org-level settings below are applied by hand.
+
+## Org-level settings applied by hand
+
+Not modelled by the policy schema; recorded so they can be re-checked. Set 2026-09-07.
+
+| Setting | Value | Why |
+|---|---|---|
+| Runner group `Default` (id 1) | `visibility: selected`, listing this repo, `bronzeward` and the private infrastructure repo that hosts the runners; `allows_public_repositories: true` | The in-cluster runners (`autops-kube-ginsys`) must not be reachable from every public repo in the org, and the Free plan allows no second group |
+| Fork-PR approval (org) | `all_external_contributors` | Every fork PR waits for approval before its workflows run on the cluster |
+| `bronzeward` Actions | `sha_pinning_required: true`, `default_workflow_permissions: read`, `can_approve_pull_request_reviews: false` | Repo-level on purpose: the org-level flag would break a repo that pins actions by major tag |
+
+Read back with `gh api orgs/ginsys/actions/runner-groups/1`,
+`gh api orgs/ginsys/actions/permissions/fork-pr-contributor-approval` and
+`gh api repos/ginsys/<repo>/actions/permissions`.
+
+## Onboarding a repo
+
+1. Add it to `GITHUB_REPOS_DEFAULT` and `GITHUB_REPOS` in `settings.yml`, and to the `repos:`
+   scope of every label it should carry in `standards/labels.json`.
+2. Add a `github_repos.<repo>` block to the policy if it needs overrides or rulesets.
+3. Add its id to the runner group
+   (`gh api -X PUT orgs/ginsys/actions/runner-groups/1/repositories/<repo_id>`) and extend
+   `SETTINGS_PAT` to it.
+4. Rename any `::` labels by hand first (a rename keeps issue associations; create-and-delete does
+   not), dispatch `mode=audit`, read the report, then `mode=apply`.
+5. In the repo: a `renovate.json` extending `github>go-kure/.github//renovate/shared`, a caller of
+   `tracker-audit.yml`, and, for the Claude review, a caller of go-kure's `pr-review.yml` with
+   `runs-on: autops-kube-ginsys`.
+
+## Local checks
+
+`mise run verify` runs what `ci.yml` runs: actionlint, shellcheck, the tracker-audit fixture tests
+and the action-pin check. `mise run settings-audit` clones go-kure/.github into `upstream/`
+(gitignored) and runs a read-only audit with your own `gh` credentials; `apply` is deliberately
+not a local task.

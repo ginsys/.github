@@ -1,0 +1,80 @@
+name: Tracker Audit
+
+# Reusable, report-only hygiene audit of a repository's issue tracker. A managed repo calls it
+# weekly and on dispatch, passing its own conventions through the inputs; the job fails when the
+# tracker has findings and writes them to the job summary. Nothing is written to the tracker:
+# the token carries issues: read and scripts/tracker-audit.sh only ever GETs.
+
+on:
+  workflow_call:
+    inputs:
+      repo:
+        description: 'owner/name of the tracker to audit (default: the calling repository)'
+        type: string
+        required: false
+        default: ''
+      require-milestone:
+        description: 'Report open issues that have no milestone'
+        type: boolean
+        required: false
+        default: true
+      single-select:
+        description: 'Comma-separated label namespaces that must carry exactly one label per open issue, e.g. "type"'
+        type: string
+        required: false
+        default: ''
+      exclusive:
+        description: 'Comma-separated colon-joined label pairs that must not coexist, e.g. "status/in-progress:status/needs-review"'
+        type: string
+        required: false
+        default: ''
+      blocked-in-progress:
+        description: 'Report status/in-progress issues that are blocked by an open issue (native dependencies)'
+        type: boolean
+        required: false
+        default: true
+      runs-on:
+        description: 'Runner label'
+        type: string
+        required: false
+        default: 'autops-kube-ginsys'
+
+jobs:
+  audit:
+    runs-on: ${{ inputs.runs-on }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: read
+    env:
+      MISE_EXEC_AUTO_INSTALL: "false"
+    steps:
+      # A called workflow does not check out its own repo. job.workflow_repository/workflow_sha
+      # name the reusable workflow's own repo and commit (the documented self-checkout pattern
+      # for reusable workflows), so the script always matches the workflow that runs it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          persist-credentials: false
+
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4
+        with:
+          install_args: jq
+
+      - name: Audit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ inputs.repo || github.repository }}
+          REQUIRE_MILESTONE: ${{ inputs.require-milestone }}
+          SINGLE_SELECT: ${{ inputs.single-select }}
+          EXCLUSIVE: ${{ inputs.exclusive }}
+          BLOCKED_IN_PROGRESS: ${{ inputs.blocked-in-progress }}
+        run: |
+          set -euo pipefail
+          args=(--repo "$REPO")
+          [ "$REQUIRE_MILESTONE" = "true" ] && args+=(--require-milestone)
+          [ -n "$SINGLE_SELECT" ] && args+=(--single-select "$SINGLE_SELECT")
+          [ -n "$EXCLUSIVE" ] && args+=(--exclusive "$EXCLUSIVE")
+          [ "$BLOCKED_IN_PROGRESS" = "true" ] && args+=(--blocked-in-progress)
+          mise exec --no-deps -- bash scripts/tracker-audit.sh "${args[@]}"
