@@ -103,5 +103,31 @@ DRAINED='[{"number": 1, "title": "01 - Open", "state": "open", "due_on": "2026-0
 assert_result "overdue milestone with no open issues passes" 0 "" \
   "$(run_fixture "$(snap "" "$DRAINED")" "${ALL_FLAGS[@]}")"
 
+# --- live mode: a failing snapshot fetch must never report a clean tracker ---
+#
+# The only test that exercises snapshot_live, and it still needs no network: a stub `gh` on PATH
+# stands in for an expired token or a transient 5xx. Without `inherit_errexit` in the script, the
+# failed fetch left `issues` empty, `jq -s 'add // []'` turned that into `[]`, and the audit
+# printed "tracker-audit: OK (0 open issues)" and exited 0 -- a green audit of nothing. Deleting
+# that shopt must fail this test.
+STUB_DIR="$(mktemp -d)"
+cat > "$STUB_DIR/gh" <<'STUB'
+#!/usr/bin/env bash
+echo "gh: HTTP 401: Bad credentials" >&2
+exit 1
+STUB
+chmod +x "$STUB_DIR/gh"
+
+live_out=$(PATH="$STUB_DIR:$PATH" bash "$SCRIPT" --repo ginsys/nonexistent --now "$NOW" 2>&1)
+live_rc=$?
+rm -rf "$STUB_DIR"
+
+if [ "$live_rc" -ne 0 ] && ! grep -q "^tracker-audit: OK" <<<"$live_out"; then
+  pass_count=$((pass_count + 1))
+else
+  echo "FAIL: a failing gh api must abort, not report OK - rc=$live_rc, output: $live_out" >&2
+  failures=$((failures + 1))
+fi
+
 echo "passed: $pass_count, failed: $failures"
 [ "$failures" -eq 0 ]

@@ -30,6 +30,13 @@
 #   --now EPOCH                reference time for overdue milestones (default: now; fixtures pin it)
 
 set -euo pipefail
+# `set -e` alone does not reach inside a command substitution: bash runs `$(...)` in a subshell
+# that does NOT inherit errexit unless this shopt is set. Without it, a `gh api` failure inside
+# snapshot_live left the function running, `jq -s 'add // []'` turned the empty output into `[]`,
+# and an audit of nothing reported "OK (0 open issues)" and exited 0 -- a green audit produced by
+# an expired token or a transient 5xx. The blocked_by endpoint returns `[]` with status 0 for an
+# issue with no dependencies (verified live), so no legitimate empty case aborts here.
+shopt -s inherit_errexit
 
 REPO="" FIXTURE="" REQUIRE_MS=0 SINGLE="" EXCLUSIVE="" BLOCKED=0 INPROG="status/in-progress" NOW=""
 while [ $# -gt 0 ]; do
