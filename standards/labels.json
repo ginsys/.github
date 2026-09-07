@@ -36,13 +36,13 @@
       "name": "type/bug",
       "color": "#1D76DB",
       "description": "Defect in shipped behaviour; used once code ships",
-      "repos": ["bronzeward"]
+      "repos": [".github", "bronzeward"]
     },
     {
       "name": "type/feature",
       "color": "#1D76DB",
       "description": "New capability in shipped code; used once code ships",
-      "repos": ["bronzeward"]
+      "repos": [".github", "bronzeward"]
     },
     {
       "name": "status/in-progress",
@@ -138,25 +138,25 @@
       "name": "dependencies",
       "color": "#0366D6",
       "description": "Dependency updates",
-      "repos": ["bronzeward"]
+      "repos": [".github", "bronzeward"]
     },
     {
       "name": "needs-human",
       "color": "#D93F0B",
       "description": "Renovate: update needs human review before merge",
-      "repos": ["bronzeward"]
+      "repos": [".github", "bronzeward"]
     },
     {
       "name": "unattended",
       "color": "#0E8A16",
       "description": "Renovate: update eligible for automerge without review",
-      "repos": ["bronzeward"]
+      "repos": [".github", "bronzeward"]
     },
     {
       "name": "security",
       "color": "#EE0701",
       "description": "Renovate: update fixes a known vulnerability (vulnerabilityAlerts)",
-      "repos": ["bronzeward"]
+      "repos": [".github", "bronzeward"]
     }
   ]
 }

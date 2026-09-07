@@ -6,8 +6,8 @@
 # pointing here and LABELS_FILE at standards/labels.json. Schema and semantics are the upstream
 # file's (go-kure/.github governance/repository-settings-policy.yaml); only the values are ours.
 #
-# Managed repos: bronzeward. The org's other repos are not managed yet; each is its own
-# onboarding (README.md, "Onboarding a repo").
+# Managed repos: .github (this repo) and bronzeward. The org's other repos are not managed yet;
+# each is its own onboarding (README.md, "Onboarding a repo").
 
 github_defaults:
   # The scalar keys below must match the script's SETTING_KEYS exactly — its validation rejects
@@ -43,6 +43,35 @@ github_defaults:
   rulesets: {}
 
 github_repos:
+  # This repo governs itself with the same defaults (rebase-only, auto-merge, delete on merge,
+  # no wiki). No merge queue: nothing here needs the merged-result test a queue buys, so the
+  # ruleset is go-kure/.github's own non-queue shape — strict up-to-date required checks.
+  ".github":
+    rulesets:
+      main-protection:
+        target: branch
+        # Active from the start: `checks` (ci.yml's aggregator) already reported on this
+        # repo's first PR, so the required context exists and cannot block every PR.
+        enforcement: active
+        conditions:
+          ref_name:
+            include: ["refs/heads/main"]
+        rules:
+          deletion: true
+          non_fast_forward: true
+          required_linear_history: true
+          pull_request:
+            required_approving_review_count: 0
+            dismiss_stale_reviews_on_push: false
+            require_code_owner_review: false
+            require_last_push_approval: false
+            required_review_thread_resolution: true
+          required_status_checks:
+            # strict: true — without a merge queue, only up-to-date enforcement guarantees
+            # the checks ran against what actually lands.
+            strict: true
+            contexts:
+              - checks                      # ci.yml aggregator job
   bronzeward:
     has_discussions: true
     rulesets:
