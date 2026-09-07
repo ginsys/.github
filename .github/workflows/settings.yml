@@ -71,14 +71,14 @@ jobs:
           export GITHUB_REPOS=bronzeward
           export LABELS_FILE="$PWD/standards/labels.json"
           export POLICY_FILE="$PWD/governance/repository-settings-policy.yaml"
-          FLAGS="--ci --json"
-          [ "$INPUT_MODE" = "apply" ] && FLAGS="$FLAGS --apply"
+          FLAGS=(--ci --json)
+          [ "$INPUT_MODE" = "apply" ] && FLAGS+=(--apply)
           # Only 'all' or a managed repo name reaches the script. A free-text input that starts
           # with '-' would otherwise be parsed as a flag ('repo=--apply' under mode=audit), and an
           # unmanaged name would fall back to GITHUB_REPOS_DEFAULT instead of failing.
           case "$INPUT_REPO" in
             all)
-              bash upstream/scripts/github-settings.sh --all $FLAGS 2>&1 | tee settings-output.txt
+              bash upstream/scripts/github-settings.sh --all "${FLAGS[@]}" 2>&1 | tee settings-output.txt
               ;;
             org)
               echo "::error::repo=org is not supported here (no admin:org scope, no github_org block)"
@@ -93,7 +93,7 @@ jobs:
                 echo "::error::repo='$INPUT_REPO' is not 'all' or a managed repository (GITHUB_REPOS=$GITHUB_REPOS)"
                 exit 1
               fi
-              bash upstream/scripts/github-settings.sh "$INPUT_REPO" $FLAGS 2>&1 | tee settings-output.txt
+              bash upstream/scripts/github-settings.sh "$INPUT_REPO" "${FLAGS[@]}" 2>&1 | tee settings-output.txt
               ;;
           esac
 
