@@ -9,7 +9,9 @@ on:
   workflow_call:
     inputs:
       repo:
-        description: 'owner/name of the tracker to audit (default: the calling repository)'
+        description: >-
+          owner/name of the tracker to audit (default: the calling repository). Another repository
+          needs the `token` secret: the caller's GITHUB_TOKEN cannot read issues outside its own repo.
         type: string
         required: false
         default: ''
@@ -38,6 +40,12 @@ on:
         type: string
         required: false
         default: 'autops-kube-ginsys'
+    secrets:
+      token:
+        description: >-
+          Token with issues: read on the audited repository. Only needed when `repo` names a
+          repository other than the caller; otherwise the caller's GITHUB_TOKEN is used.
+        required: false
 
 jobs:
   audit:
@@ -64,7 +72,7 @@ jobs:
 
       - name: Audit
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.token || github.token }}
           REPO: ${{ inputs.repo || github.repository }}
           REQUIRE_MILESTONE: ${{ inputs.require-milestone }}
           SINGLE_SELECT: ${{ inputs.single-select }}

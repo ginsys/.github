@@ -27,7 +27,9 @@ edit ("Onboarding a repo" below), not new tooling.
 1. `settings.yml` runs daily at 06:00 UTC and on every push to `governance/` or `standards/`, in
    **audit** mode: it reports drift in the job summary and fails the run, changing nothing.
 2. Changes are applied by dispatching it with `mode=apply`
-   (`gh workflow run settings.yml -R ginsys/.github -f mode=apply`) after reading an audit.
+   (`gh workflow run settings.yml -R ginsys/.github -f mode=apply`) after reading an audit. The
+   `repo` input narrows a run to one managed repo; anything that is not `all` or a name in the
+   workflow's `GITHUB_REPOS` is refused before the script sees it.
 3. `apply` is destructive for labels: a live label not declared in `standards/labels.json` is
    deleted. Snapshot first: `gh label list -R ginsys/<repo> --json name,color,description`.
 
@@ -61,12 +63,13 @@ Read back with `gh api orgs/ginsys/actions/runner-groups/1`,
 4. Rename any `::` labels by hand first (a rename keeps issue associations; create-and-delete does
    not), dispatch `mode=audit`, read the report, then `mode=apply`.
 5. In the repo: a `renovate.json` extending `github>go-kure/.github//renovate/shared`, a caller of
-   `tracker-audit.yml`, and, for the Claude review, a caller of go-kure's `pr-review.yml` with
-   `runs-on: autops-kube-ginsys`.
+   `tracker-audit.yml` (auditing a *different* repo's tracker needs the `token` secret — the
+   caller's `GITHUB_TOKEN` only reads its own issues), and, for the Claude review, a caller of
+   go-kure's `pr-review.yml` with `runs-on: autops-kube-ginsys`.
 
 ## Local checks
 
 `mise run verify` runs what `ci.yml` runs: actionlint, shellcheck, the tracker-audit fixture tests
 and the action-pin check. `mise run settings-audit` clones go-kure/.github into `upstream/`
-(gitignored) and runs a read-only audit with your own `gh` credentials; `apply` is deliberately
-not a local task.
+(gitignored) and runs a read-only audit with your own `gh` credentials; it forwards only `--ci`
+and `--json` and refuses everything else, so `apply` cannot run from a workstation.
