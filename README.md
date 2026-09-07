@@ -44,7 +44,7 @@ Not modelled by the policy schema; recorded so they can be re-checked. Set 2026-
 
 | Setting | Value | Why |
 |---|---|---|
-| Runner group `Default` (id 1) | `visibility: selected`, listing this repo, `bronzeward` and the private infrastructure repo that hosts the runners; `allows_public_repositories: true` | The in-cluster runners (`autops-kube-ginsys`) must not be reachable from every public repo in the org, and the Free plan allows no second group |
+| Runner group `Default` (id 1) | `visibility: selected` with an explicit repository allow-list; `allows_public_repositories: true` | The in-cluster runners must not be reachable from every repo in the org, and the Free plan allows no second group. The current membership is whatever the read-back below returns; it is not restated here |
 | Fork-PR approval (org) | `all_external_contributors` | Every fork PR waits for approval before its workflows run on the cluster |
 | `bronzeward` Actions | `sha_pinning_required: true`, `default_workflow_permissions: read`, `can_approve_pull_request_reviews: false` | Repo-level on purpose: the org-level flag would break a repo that pins actions by major tag |
 
