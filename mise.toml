@@ -37,7 +37,15 @@ run = "FIRST_PARTY_WORKFLOW_RE='^(go-kure|ginsys)/[^/]+/\\.github/workflows/[^@]
 [tasks.settings-audit]
 description = "Read-only audit of the managed repos against the policy, with your own gh credentials"
 depends = ["upstream-sync"]
+# Only the output flags reach the script. --apply in particular never does: apply runs through the
+# settings.yml dispatch, after an audit and a label snapshot (README.md, "Settings flow").
 run = """
+for a in "$@"; do
+  case "$a" in
+    --ci|--json) ;;
+    *) echo "settings-audit: '$a' not accepted; only --ci and --json are forwarded (apply is a workflow dispatch, never local)" >&2; exit 1 ;;
+  esac
+done
 GITHUB_ORG=ginsys GITHUB_REPOS_DEFAULT=bronzeward GITHUB_REPOS=bronzeward \
 LABELS_FILE="$PWD/standards/labels.json" POLICY_FILE="$PWD/governance/repository-settings-policy.yaml" \
 bash upstream/scripts/github-settings.sh --all "$@"

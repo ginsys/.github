@@ -72,7 +72,10 @@ snapshot_live() {
     local n blocked_by
     while IFS= read -r n; do
       [ -n "$n" ] || continue
-      blocked_by=$(gh api "repos/$REPO/issues/$n/dependencies/blocked_by" --jq '[.[] | {number, state}]')
+      # Paginated like the issue list: the endpoint pages at 30 by default, and an open blocker
+      # past the first page would otherwise read as "unblocked".
+      blocked_by=$(gh api --paginate "repos/$REPO/issues/$n/dependencies/blocked_by?per_page=100" \
+        --jq '[.[] | {number, state}]' | jq -s 'add // []')
       deps=$(jq -c --arg n "$n" --argjson b "$blocked_by" '. + {($n): $b}' <<<"$deps")
     done < <(jq -r --arg l "$INPROG" '.[] | select(.labels | index($l)) | .number' <<<"$issues")
   fi
