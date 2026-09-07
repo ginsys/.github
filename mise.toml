@@ -10,9 +10,11 @@ yq = "4.53.6"
 description = "actionlint on the workflows, shellcheck on the scripts"
 # job.workflow_repository / job.workflow_sha are documented (GitHub contexts reference, "job"
 # context) but not yet in actionlint 1.7.12's schema; drop the -ignore once a release knows them.
+# SHELLCHECK_OPTS is cleared so a user's shell defaults (e.g. --exclude=SC2086) cannot hide a
+# finding locally that CI, with a clean environment, reports.
 run = """
-actionlint -ignore 'property "workflow_(repository|sha)" is not defined in object type'
-shellcheck scripts/*.sh scripts/test/*.sh
+env -u SHELLCHECK_OPTS actionlint -ignore 'property "workflow_(repository|sha)" is not defined in object type'
+env -u SHELLCHECK_OPTS shellcheck scripts/*.sh scripts/test/*.sh
 """
 
 [tasks.test]
