@@ -10,7 +10,9 @@ configuration lives here.
 Managed repos: this one and [`bronzeward`](https://github.com/ginsys/bronzeward). Onboarding
 another is a policy edit ("Onboarding a repo" below), not new tooling. This repo governs itself
 with the same defaults (rebase-only merges, auto-merge, delete on merge) and a non-queue
-`main-protection` ruleset requiring the `checks` context, up to date.
+`main-protection` ruleset requiring the `checks` context, up to date. Its own tracker is audited
+weekly by `tracker-audit-self.yml`. Not done for this repo: the Claude `pr-review` caller
+(onboarding step 5). Its PRs are configuration reviewed by Codex; add the caller if that changes.
 
 ## What is here
 
@@ -20,6 +22,7 @@ with the same defaults (rebase-only merges, auto-merge, delete on merge) and a n
 | `standards/labels.json`, `standards/labels.md` | Label set and the conventions behind it |
 | `.github/workflows/settings.yml` | Daily audit of the managed repos; `apply` by manual dispatch |
 | `.github/workflows/tracker-audit.yml` | Reusable, report-only issue-tracker hygiene audit |
+| `.github/workflows/tracker-audit-self.yml` | This repo's weekly caller of it |
 | `scripts/tracker-audit.sh` | The audit itself, fixture-tested by `scripts/test/tracker-audit-test.sh` |
 | `.github/workflows/ci.yml` | This repo's own checks: lint, tests, action pins |
 | `profile/README.md` | Organization profile |

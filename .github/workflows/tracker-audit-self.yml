@@ -1,0 +1,24 @@
+name: Tracker audit (this repo)
+
+# The weekly caller of the reusable tracker audit for this repository's own issue tracker, the
+# same call every managed repo makes (README.md, "Onboarding a repo", step 5). This repo carries
+# only the generic labels (standards/labels.md, "Repo scoping"): `type/` is single-select, there
+# are no `status/` labels to check for exclusivity or blocked-in-progress, and its issues are not
+# planned through milestones, so those checks are off.
+
+on:
+  schedule:
+    - cron: '30 6 * * 1'  # Mondays 06:30 UTC, after the daily settings audit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+
+jobs:
+  audit:
+    uses: ./.github/workflows/tracker-audit.yml
+    with:
+      require-milestone: false
+      single-select: type
+      blocked-in-progress: false
