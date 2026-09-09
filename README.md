@@ -11,12 +11,20 @@ go-kure's reusable could not land on `autops-kube-ginsys`, the only runners that
 claude proxy. The job body is go-kure's; the review logic stays upstream as the `pr-review-threads`
 composite action, pinned to a commit.
 
-Managed repos: this one and [`bronzeward`](https://github.com/ginsys/bronzeward). Onboarding
-another is a policy edit ("Onboarding a repo" below), not new tooling. This repo governs itself
-with the same defaults (rebase-only merges, auto-merge, delete on merge) and a non-queue
-`main-protection` ruleset requiring the `checks` context, up to date. Its own tracker is audited
-weekly by `tracker-audit-self.yml`. Not done for this repo: the Claude `pr-review` caller
-(onboarding step 5). Its PRs are configuration reviewed by Codex; add the caller if that changes.
+Managed repos: this one, [`bronzeward`](https://github.com/ginsys/bronzeward) and
+[`parley`](https://github.com/ginsys/parley). Onboarding another is a policy edit ("Onboarding a
+repo" below), not new tooling. This repo governs itself with the same defaults (rebase-only
+merges, auto-merge, delete on merge) and a non-queue `main-protection` ruleset requiring the
+`checks` context, up to date. Its own tracker is audited weekly by `tracker-audit-self.yml`. Not
+done for this repo: the Claude `pr-review` caller (onboarding step 5). Its PRs are configuration
+reviewed by Codex; add the caller if that changes.
+
+parley carries settings and labels only (no `github_repos.parley` block: it needs no overrides on
+top of `github_defaults`) — no ruleset. It is a private repository, and the GitHub Free plan this
+org is on does not support rulesets or required status checks on private repos
+(`gh api repos/ginsys/parley/rulesets` returns 403). Its CI (`checks`) and Claude review
+(`PR Review`) run and report but are not required checks yet; revisit if parley goes public or the
+org upgrades.
 
 ## What is here
 

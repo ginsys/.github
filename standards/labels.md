@@ -6,8 +6,8 @@ managed repo against it. A label that exists live but is not declared here is re
 and deleted by the next `apply`; colour or description drift is reported as `WRONG` and rewritten.
 
 The structure follows go-kure's convention (`category/value`, one separator, everything declared,
-`repos:` scoping); the set is bronzeward's own. Managed repos today: `.github` (this repo) and
-`bronzeward`.
+`repos:` scoping); the set originated as bronzeward's own. Managed repos today: `.github` (this
+repo), `bronzeward` and `parley`.
 
 ## Naming
 
@@ -43,9 +43,14 @@ Renovate labels keep go-kure's colours), so an author never chooses one.
 
 The nine component areas mirror the design's core components (bronzeward
 `docs/design/Talos_Configuration_and_Machine_Management_Design.md`, section 5.1); `design`, `docs`
-and `ci` cover the repository itself. A new `area/<component>` may be created directly on a repo to
-unblock triage, but **the same unit of work back-fills it into `labels.json` and the table above.**
-Until it is declared here the daily audit reports it as `EXTRA`, and the next `apply` deletes it.
+and `ci` cover the repository itself. parley's own set mirrors its package layout instead:
+`store`, `dispatch`, `controller` and `adapters` (`internal/store`, `internal/dispatch`,
+`internal/controller`/`cmd/parleyctl`, and the Claude/Codex transport adapters respectively); it
+shares `docs` and `ci` with bronzeward rather than duplicating those two (widen a shared label's
+scope instead of declaring a second one with the same meaning). A new `area/<component>` may be
+created directly on a repo to unblock triage, but **the same unit of work back-fills it into
+`labels.json` and the table above.** Until it is declared here the daily audit reports it as
+`EXTRA`, and the next `apply` deletes it.
 
 ## Repo scoping
 
@@ -54,11 +59,11 @@ scoped one is required only on the listed repos and reported as extra elsewhere.
 onboarded, widen the scope of the labels it shares rather than duplicating entries.
 
 `.github` carries only the generic labels: `type/bug`, `type/feature` and the four Renovate
-labels. The bronzeward work-type, `status/` and `area/` labels describe bronzeward's delivery
-model and stay scoped to it. `type/bug` and `type/feature` are declared on every managed repo on
-purpose: where the targets are declared, the settings script *renames* GitHub's default
-`bug`/`enhancement` labels to them, which keeps issue associations; where they are not, the
-defaults are plain extras and `apply` deletes them.
+labels. bronzeward and parley both use the full work-type and `status/` label set for their
+tracking workflow; their `area/` labels differ per repo and stay scoped to it. `type/bug` and
+`type/feature` are declared on every managed repo on purpose: where the targets are declared, the
+settings script *renames* GitHub's default `bug`/`enhancement` labels to them, which keeps issue
+associations; where they are not, the defaults are plain extras and `apply` deletes them.
 
 ## Renovate labels
 

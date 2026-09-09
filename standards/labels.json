@@ -6,61 +6,61 @@
       "name": "type/investigation",
       "color": "#1D76DB",
       "description": "Reproducible evidence to evaluate alternatives and enable a decision",
-      "repos": ["bronzeward"]
+      "repos": ["bronzeward", "parley"]
     },
     {
       "name": "type/decision",
       "color": "#1D76DB",
       "description": "Owner decision with recorded rationale and consequences",
-      "repos": ["bronzeward"]
+      "repos": ["bronzeward", "parley"]
     },
     {
       "name": "type/specification",
       "color": "#1D76DB",
       "description": "Detailed contracts grounded in accepted design and evidence",
-      "repos": ["bronzeward"]
+      "repos": ["bronzeward", "parley"]
     },
     {
       "name": "type/implementation",
       "color": "#1D76DB",
       "description": "Implementation of a refined and approved work item",
-      "repos": ["bronzeward"]
+      "repos": ["bronzeward", "parley"]
     },
     {
       "name": "type/validation",
       "color": "#1D76DB",
       "description": "Evidence review or integrated acceptance assessment",
-      "repos": ["bronzeward"]
+      "repos": ["bronzeward", "parley"]
     },
     {
       "name": "type/bug",
       "color": "#1D76DB",
       "description": "Defect in shipped behaviour; used once code ships",
-      "repos": [".github", "bronzeward"]
+      "repos": [".github", "bronzeward", "parley"]
     },
     {
       "name": "type/feature",
       "color": "#1D76DB",
       "description": "New capability in shipped code; used once code ships",
-      "repos": [".github", "bronzeward"]
+      "repos": [".github", "bronzeward", "parley"]
     },
     {
       "name": "status/in-progress",
       "color": "#FEF2C0",
       "description": "Responsibility accepted and work underway; exclusive with needs-review",
-      "repos": ["bronzeward"]
+      "repos": ["bronzeward", "parley"]
     },
     {
       "name": "status/needs-review",
       "color": "#FEF2C0",
       "description": "Ready for owner or designated review; exclusive with in-progress",
-      "repos": ["bronzeward"]
+      "repos": ["bronzeward", "parley"]
     },
     {
       "name": "status/needs-refinement",
       "color": "#FEF2C0",
       "description": "Implementation detail or acceptance verification still needs refinement",
-      "repos": ["bronzeward"]
+      "repos": ["bronzeward", "parley"]
     },
     {
       "name": "area/api",
@@ -125,38 +125,62 @@
     {
       "name": "area/docs",
       "color": "#5319E7",
-      "description": "Repository documentation outside docs/design: README, CONTRIBUTING, AGENTS",
-      "repos": ["bronzeward"]
+      "description": "Repository documentation outside design references: README, CONTRIBUTING, AGENTS",
+      "repos": ["bronzeward", "parley"]
     },
     {
       "name": "area/ci",
       "color": "#5319E7",
       "description": "Workflows, checks, repo tooling and org-standards consumption",
-      "repos": ["bronzeward"]
+      "repos": ["bronzeward", "parley"]
+    },
+    {
+      "name": "area/store",
+      "color": "#5319E7",
+      "description": "SQLite schema and state machine (internal/store)",
+      "repos": ["parley"]
+    },
+    {
+      "name": "area/dispatch",
+      "color": "#5319E7",
+      "description": "Ordinary send/dispatch and the Transport interface (internal/dispatch)",
+      "repos": ["parley"]
+    },
+    {
+      "name": "area/controller",
+      "color": "#5319E7",
+      "description": "The protected controller: grants, revocations, renewals (internal/controller, cmd/parleyctl)",
+      "repos": ["parley"]
+    },
+    {
+      "name": "area/adapters",
+      "color": "#5319E7",
+      "description": "Claude-side and Codex-side transport adapters and reply-marker parsing",
+      "repos": ["parley"]
     },
     {
       "name": "dependencies",
       "color": "#0366D6",
       "description": "Dependency updates",
-      "repos": [".github", "bronzeward"]
+      "repos": [".github", "bronzeward", "parley"]
     },
     {
       "name": "needs-human",
       "color": "#D93F0B",
       "description": "Renovate: update needs human review before merge",
-      "repos": [".github", "bronzeward"]
+      "repos": [".github", "bronzeward", "parley"]
     },
     {
       "name": "unattended",
       "color": "#0E8A16",
       "description": "Renovate: update eligible for automerge without review",
-      "repos": [".github", "bronzeward"]
+      "repos": [".github", "bronzeward", "parley"]
     },
     {
       "name": "security",
       "color": "#EE0701",
       "description": "Renovate: update fixes a known vulnerability (vulnerabilityAlerts)",
-      "repos": [".github", "bronzeward"]
+      "repos": [".github", "bronzeward", "parley"]
     }
   ]
 }
