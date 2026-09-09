@@ -19,15 +19,12 @@ merges, auto-merge, delete on merge) and a non-queue `main-protection` ruleset r
 done for this repo: the Claude `pr-review` caller (onboarding step 5). Its PRs are configuration
 reviewed by Codex; add the caller if that changes.
 
-parley carries settings and labels, plus overrides for four `github_defaults` values a private
-repo on this org's GitHub Free plan can't actually have: `allow_forking` (422 — the org disallows
-forking private repos), `allow_auto_merge` (silently ignored — auto-merge on private repos needs
-GitHub Team or Enterprise Cloud), and `security.secret_scanning` /
-`security.secret_scanning_push_protection` (422 — GitHub Advanced Security isn't offered for
-private repos on Free) — no ruleset either (`gh api repos/ginsys/parley/rulesets` returns 403; no
-rulesets or required status checks on private Free-plan repos). Its CI (`checks`) and Claude review
-(`PR Review`) run and report but are not required checks yet; revisit if parley goes public or the
-org upgrades.
+parley carries settings and labels, plus a `has_discussions: true` override, and — now that it is
+public (2026-09-09) — a queue-shaped `main-protection` ruleset identical to bronzeward's: `checks`
+and `pr-review / AI Code Review` required, not strict (the queue tests the merged result), REBASE
+merge queue. Before going public it was private on this org's GitHub Free plan, which blocks
+rulesets (403), auto-merge (silently ignored) and secret scanning (422) on private repos entirely;
+any future private-repo onboarding hits the same three walls until it too goes public.
 
 ## What is here
 
