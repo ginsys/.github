@@ -25,7 +25,7 @@ by the forge.
 |---|---|---|
 | `type/` | `investigation`, `decision`, `specification`, `implementation`, `validation`, `bug`, `feature` | exactly one per issue |
 | `status/` | `in-progress`, `needs-review`, `needs-refinement` | `in-progress` and `needs-review` are mutually exclusive; `needs-refinement` may coexist with either |
-| `area/` | `api`, `database`, `secrets`, `compiler`, `publisher`, `operations`, `transport`, `observer`, `observability`, `design`, `docs`, `ci` | any number; open namespace (below) |
+| `area/` | `api`, `database`, `secrets`, `compiler`, `publisher`, `operations`, `transport`, `observer`, `observability`, `design`, `docs`, `ci`, `store`, `dispatch`, `controller`, `adapters` | any number; open namespace (below) |
 | none | `dependencies`, `needs-human`, `unattended`, `security` | applied by Renovate to PRs; never chosen by a person |
 
 No `priority/` and no `effort/`: milestones order the work. No `status/blocked`: blocking is

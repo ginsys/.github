@@ -6,8 +6,8 @@
 # pointing here and LABELS_FILE at standards/labels.json. Schema and semantics are the upstream
 # file's (go-kure/.github governance/repository-settings-policy.yaml); only the values are ours.
 #
-# Managed repos: .github (this repo) and bronzeward. The org's other repos are not managed yet;
-# each is its own onboarding (README.md, "Onboarding a repo").
+# Managed repos: .github (this repo), bronzeward and parley. The org's other repos are not managed
+# yet; each is its own onboarding (README.md, "Onboarding a repo").
 
 github_defaults:
   # The scalar keys below must match the script's SETTING_KEYS exactly — its validation rejects
