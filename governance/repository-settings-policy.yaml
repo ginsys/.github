@@ -128,21 +128,45 @@ github_repos:
             review_on_push: true
             review_draft_pull_requests: true
   parley:
-    # Private repo on a GitHub Free-plan org: four github_defaults values don't hold here, each
-    # verified live rather than assumed.
-    #   - allow_forking: true 422s — "This organization does not allow private repository forking."
-    #   - allow_auto_merge: true is silently ignored — PATCH returns 200 but the field stays false.
-    #     GitHub restricts auto-merge on private repos to Team/Enterprise Cloud; Free-plan orgs get
-    #     it on public repos only (bronzeward, public, has allow_auto_merge: true live).
-    #   - security.secret_scanning / security.secret_scanning_push_protection: true 422s —
-    #     "Secret scanning is not available for this repository" (GitHub Advanced Security isn't
-    #     offered for private repos on Free).
-    #   - No ruleset (README.md, "Managed repos" — rulesets aren't available either, 403).
-    allow_forking: false
-    allow_auto_merge: false
-    security:
-      secret_scanning: disabled
-      secret_scanning_push_protection: disabled
+    has_discussions: true
+    rulesets:
+      # Repo-only ruleset (no github_defaults entry), same merge-queue shape as bronzeward.
+      main-protection:
+        target: branch
+        # Active from the start: both required contexts already reported green on a real PR
+        # (ginsys/parley#5 — `checks` from ci.yml, `pr-review / AI Code Review` from the PR
+        # Review caller), so the ruleset cannot block every PR on a context that never arrives.
+        # Public since 2026-09-09; before that the Free plan refused rulesets on private repos
+        # (403) and this block did not exist.
+        enforcement: active
+        conditions:
+          ref_name:
+            include: ["refs/heads/main"]
+        rules:
+          deletion: true
+          non_fast_forward: true
+          required_linear_history: true
+          pull_request:
+            required_approving_review_count: 0
+            dismiss_stale_reviews_on_push: false
+            require_code_owner_review: false
+            require_last_push_approval: false
+            required_review_thread_resolution: true
+          required_status_checks:
+            # strict: false — the merge queue tests the real merged result, so up-to-date
+            # enforcement on the PR branch would only add rebases.
+            strict: false
+            contexts:
+              - checks                      # parley ci.yml aggregator job
+              - pr-review / AI Code Review  # ginsys/.github pr-review.yml reusable (caller job `pr-review`)
+          merge_queue:
+            merge_method: REBASE
+            grouping_strategy: ALLGREEN
+            min_entries_to_merge: 1
+            max_entries_to_merge: 1
+            max_entries_to_build: 1
+            min_entries_to_merge_wait_minutes: 0
+            check_response_timeout_minutes: 60
 
 # No github_org block: the script's --org path needs a token with admin:org, which the
 # repo-scoped SETTINGS_PAT does not carry. Org-level settings (runner group scope, fork-PR
