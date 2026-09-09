@@ -128,11 +128,21 @@ github_repos:
             review_on_push: true
             review_draft_pull_requests: true
   parley:
-    # Private repo; this org disallows forking private repositories. Applying github_defaults'
-    # allow_forking: true here fails live: `gh api -X PATCH repos/ginsys/parley` returns 422
-    # "This organization does not allow private repository forking." No ruleset (README.md,
-    # "Managed repos" — GitHub Free plan doesn't support rulesets on private repos either).
+    # Private repo on a GitHub Free-plan org: four github_defaults values don't hold here, each
+    # verified live rather than assumed.
+    #   - allow_forking: true 422s — "This organization does not allow private repository forking."
+    #   - allow_auto_merge: true is silently ignored — PATCH returns 200 but the field stays false.
+    #     GitHub restricts auto-merge on private repos to Team/Enterprise Cloud; Free-plan orgs get
+    #     it on public repos only (bronzeward, public, has allow_auto_merge: true live).
+    #   - security.secret_scanning / security.secret_scanning_push_protection: true 422s —
+    #     "Secret scanning is not available for this repository" (GitHub Advanced Security isn't
+    #     offered for private repos on Free).
+    #   - No ruleset (README.md, "Managed repos" — rulesets aren't available either, 403).
     allow_forking: false
+    allow_auto_merge: false
+    security:
+      secret_scanning: disabled
+      secret_scanning_push_protection: disabled
 
 # No github_org block: the script's --org path needs a token with admin:org, which the
 # repo-scoped SETTINGS_PAT does not carry. Org-level settings (runner group scope, fork-PR

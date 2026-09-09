@@ -19,11 +19,13 @@ merges, auto-merge, delete on merge) and a non-queue `main-protection` ruleset r
 done for this repo: the Claude `pr-review` caller (onboarding step 5). Its PRs are configuration
 reviewed by Codex; add the caller if that changes.
 
-parley carries settings and labels, plus one override: `allow_forking: false`, since this org
-disallows forking private repositories and `github_defaults`' `allow_forking: true` 422s against a
-private repo — no ruleset. It is a private repository, and the GitHub Free plan this org is on does
-not support rulesets or required status checks on private repos
-(`gh api repos/ginsys/parley/rulesets` returns 403). Its CI (`checks`) and Claude review
+parley carries settings and labels, plus overrides for four `github_defaults` values a private
+repo on this org's GitHub Free plan can't actually have: `allow_forking` (422 — the org disallows
+forking private repos), `allow_auto_merge` (silently ignored — auto-merge on private repos needs
+GitHub Team or Enterprise Cloud), and `security.secret_scanning` /
+`security.secret_scanning_push_protection` (422 — GitHub Advanced Security isn't offered for
+private repos on Free) — no ruleset either (`gh api repos/ginsys/parley/rulesets` returns 403; no
+rulesets or required status checks on private Free-plan repos). Its CI (`checks`) and Claude review
 (`PR Review`) run and report but are not required checks yet; revisit if parley goes public or the
 org upgrades.
 
