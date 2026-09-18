@@ -95,7 +95,10 @@ Read back with `gh api orgs/ginsys/actions/runner-groups/1`,
    reports in a queue). The mode is the repo variable `PR_REVIEW_THREADS_MODE`: unset or
    `advisory` posts one review comment and creates no threads; `enforce` creates a resolvable
    thread per finding; `off` skips the job. `enforce` also needs a human-owned actor for thread
-   resolution — see the header of `pr-review.yml`.
+   resolution — see the header of `pr-review.yml`. Its own `ci.yml` routes `merge_group` events and
+   pull requests from forks to `ubuntu-latest`, keeping `autops-kube-ginsys` for the repo's own
+   branches (see this repo's `ci.yml` for the exact expression) — contributor-controlled files must
+   never execute in the cluster before they land on the default branch.
 
 ## Local checks
 
