@@ -6,8 +6,8 @@
 # pointing here and LABELS_FILE at standards/labels.json. Schema and semantics are the upstream
 # file's (go-kure/.github governance/repository-settings-policy.yaml); only the values are ours.
 #
-# Managed repos: .github (this repo), bronzeward and parley. The org's other repos are not managed
-# yet; each is its own onboarding (README.md, "Onboarding a repo").
+# Managed repos: .github (this repo), bronzeward, parley and opsmaster. The org's other repos are
+# not managed yet; each is its own onboarding (README.md, "Onboarding a repo").
 
 github_defaults:
   # The scalar keys below must match the script's SETTING_KEYS exactly — its validation rejects
@@ -167,6 +167,20 @@ github_repos:
             max_entries_to_build: 1
             min_entries_to_merge_wait_minutes: 0
             check_response_timeout_minutes: 60
+  opsmaster:
+    # Private repo on the org's Free plan — pin these to opsmaster's actual live values instead
+    # of inheriting github_defaults, or --apply crashes: allow_auto_merge is silently ignored
+    # there (harmless but permanent audit noise if left at the default true), and
+    # security.secret_scanning PATCHed to "enabled" 422s, which github-settings.sh does not
+    # catch (unguarded `gh api ... --silent` under set -euo pipefail) -- it would abort the
+    # whole --all --apply run, not just fail for this repo.
+    allow_auto_merge: false
+    allow_forking: false
+    security:
+      secret_scanning: disabled
+      secret_scanning_push_protection: disabled
+    # No rulesets block: private + Free plan gets a 403 on ruleset creation. Branch protection
+    # here stays whatever it is today, unmanaged by this tooling.
 
 # No github_org block: the script's --org path needs a token with admin:org, which the
 # repo-scoped SETTINGS_PAT does not carry. Org-level settings (runner group scope, fork-PR
