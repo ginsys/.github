@@ -11,20 +11,27 @@ go-kure's reusable could not land on `autops-kube-ginsys`, the only runners that
 claude proxy. The job body is go-kure's; the review logic stays upstream as the `pr-review-threads`
 composite action, pinned to a commit.
 
-Managed repos: this one, [`bronzeward`](https://github.com/ginsys/bronzeward) and
-[`parley`](https://github.com/ginsys/parley). Onboarding another is a policy edit ("Onboarding a
-repo" below), not new tooling. This repo governs itself with the same defaults (rebase-only
-merges, auto-merge, delete on merge) and a non-queue `main-protection` ruleset requiring the
-`checks` context, up to date. Its own tracker is audited weekly by `tracker-audit-self.yml`. Not
-done for this repo: the Claude `pr-review` caller (onboarding step 5). Its PRs are configuration
-reviewed by Codex; add the caller if that changes.
+Managed repos: this one, [`bronzeward`](https://github.com/ginsys/bronzeward),
+[`parley`](https://github.com/ginsys/parley) and `opsmaster`. Onboarding another is a policy edit
+("Onboarding a repo" below), not new tooling. This repo governs itself with the same defaults
+(rebase-only merges, auto-merge, delete on merge) and a non-queue `main-protection` ruleset
+requiring the `checks` context, up to date. Its own tracker is audited weekly by
+`tracker-audit-self.yml`. Not done for this repo: the Claude `pr-review` caller (onboarding step
+5). Its PRs are configuration reviewed by Codex; add the caller if that changes.
 
 parley carries settings and labels, plus a `has_discussions: true` override, and — now that it is
 public (2026-09-09) — a queue-shaped `main-protection` ruleset identical to bronzeward's: `checks`
 and `pr-review / AI Code Review` required, not strict (the queue tests the merged result), REBASE
 merge queue. Before going public it was private on this org's GitHub Free plan, which blocks
-rulesets (403), auto-merge (silently ignored) and secret scanning (422) on private repos entirely;
-any future private-repo onboarding hits the same three walls until it too goes public.
+rulesets (403), auto-merge (silently ignored) and secret scanning (422) on private repos entirely.
+
+opsmaster is private on this org's GitHub Free plan and hits those same three walls, so its
+policy block pins `allow_auto_merge`/`allow_forking`/`security.*` to its actual live values
+instead of inheriting the shared defaults, and declares no `rulesets:` block. Labels and settings
+are audited and applied the same as any other managed repo; only rulesets are unmanaged there
+until it can go public. Its label set was imported unchanged rather than migrated to this repo's
+taxonomy — see `standards/labels.md`'s opsmaster exception note. Any future private-repo
+onboarding hits the same three walls until it too goes public.
 
 ## What is here
 
