@@ -36,13 +36,13 @@
       "name": "type/bug",
       "color": "#1D76DB",
       "description": "Defect in shipped behaviour; used once code ships",
-      "repos": [".github", "bronzeward", "parley"]
+      "repos": [".github", "bronzeward", "parley", "opsmaster"]
     },
     {
       "name": "type/feature",
       "color": "#1D76DB",
       "description": "New capability in shipped code; used once code ships",
-      "repos": [".github", "bronzeward", "parley"]
+      "repos": [".github", "bronzeward", "parley", "opsmaster"]
     },
     {
       "name": "status/in-progress",
@@ -132,7 +132,7 @@
       "name": "area/ci",
       "color": "#5319E7",
       "description": "Workflows, checks, repo tooling and org-standards consumption",
-      "repos": ["bronzeward", "parley"]
+      "repos": ["bronzeward", "parley", "opsmaster"]
     },
     {
       "name": "area/store",
@@ -162,7 +162,7 @@
       "name": "dependencies",
       "color": "#0366D6",
       "description": "Dependency updates",
-      "repos": [".github", "bronzeward", "parley"]
+      "repos": [".github", "bronzeward", "parley", "opsmaster"]
     },
     {
       "name": "needs-human",
@@ -174,13 +174,211 @@
       "name": "unattended",
       "color": "#0E8A16",
       "description": "Renovate: update eligible for automerge without review",
-      "repos": [".github", "bronzeward", "parley"]
+      "repos": [".github", "bronzeward", "parley", "opsmaster"]
     },
     {
       "name": "security",
       "color": "#EE0701",
       "description": "Renovate: update fixes a known vulnerability (vulnerabilityAlerts)",
       "repos": [".github", "bronzeward", "parley"]
+    },
+    {
+      "name": "critical-infra",
+      "color": "#EDEDED",
+      "description": "",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "major-update",
+      "color": "#EDEDED",
+      "description": "",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "needs-review",
+      "color": "#EDEDED",
+      "description": "",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "type/chore",
+      "color": "#C5DEF5",
+      "description": "Maintenance and housekeeping",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "type/ci",
+      "color": "#000000",
+      "description": "CI/CD related",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "type/security",
+      "color": "#D93F0B",
+      "description": "Security-related issue or fix",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "type/design",
+      "color": "#C5DEF5",
+      "description": "Design document or RFC",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "type/documentation",
+      "color": "#BFD4F2",
+      "description": "Documentation changes",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "type/epic",
+      "color": "#0052CC",
+      "description": "Epic or umbrella issue",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "type/roadmap",
+      "color": "#D4AF37",
+      "description": "Master tracking, strategic roadmap, or program-level umbrella issue",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "type/refactor",
+      "color": "#C5DEF5",
+      "description": "Code refactoring",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "type/testing",
+      "color": "#BFD4F2",
+      "description": "Testing improvements",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "type/upgrade",
+      "color": "#C5DEF5",
+      "description": "Dependency upgrade or version bump",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "area/monitoring",
+      "color": "#5319E7",
+      "description": "victoria-metrics, victorialogs, perses, VMRules, notifications/ntfy/apprise",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "type/breaking-change",
+      "color": "#B60205",
+      "description": "Introduces breaking changes",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "area/network",
+      "color": "#5319E7",
+      "description": "cilium, ingress-nginx, external-dns, coredns, gateway-api",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "area/storage",
+      "color": "#5319E7",
+      "description": "democratic-csi, topolvm, garage, PVCs, cochir/TrueNAS",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "area/flux",
+      "color": "#5319E7",
+      "description": "flux-operator, Kustomizations, bootstrap, Renovate config",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "area/nodes",
+      "color": "#5319E7",
+      "description": "Talos config, node hardware, node lifecycle",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "area/apps",
+      "color": "#5319E7",
+      "description": "Application workloads",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "area/backup",
+      "color": "#5319E7",
+      "description": "VolSync, CNPG backups, talos-etcd-backup",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "status::deferred",
+      "color": "#FEF2C0",
+      "description": "Future / low-priority, revisit later",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "status::blocked",
+      "color": "#D93F0B",
+      "description": "Blocked on an external dependency",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "status::in-progress",
+      "color": "#1D76DB",
+      "description": "Currently being worked on",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "status::needs-review",
+      "color": "#0E8A16",
+      "description": "Awaiting review",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "priority::critical",
+      "color": "#B60205",
+      "description": "Must be fixed immediately",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "priority::high",
+      "color": "#D93F0B",
+      "description": "Important, fix soon",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "effort::low",
+      "color": "#0E8A16",
+      "description": "Small task, single pattern change",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "priority::low",
+      "color": "#0E8A16",
+      "description": "Nice to have, not urgent",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "priority::medium",
+      "color": "#FBCA04",
+      "description": "Normal priority",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "effort::high",
+      "color": "#D93F0B",
+      "description": "Large task, cross-repo or new patterns",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "effort::medium",
+      "color": "#FBCA04",
+      "description": "Moderate task, some design needed",
+      "repos": ["opsmaster"]
+    },
+    {
+      "name": "cluster-tooling",
+      "color": "#EDEDED",
+      "description": "",
+      "repos": ["opsmaster"]
     }
   ]
 }
