@@ -16,12 +16,23 @@ concurrency:
 permissions:
   contents: read
 
+# Runner choice: the org's in-cluster runners for this repository's own branches, GitHub-hosted
+# (free on a public repo) for pull requests from forks and for merge-queue candidates, so
+# contributor-controlled files (mise.toml, the workflows themselves) never execute inside the
+# cluster before they are on main. A merge_group event carries no github.event.pull_request, so
+# it cannot tell a fork's candidate from an own-branch one; routing every candidate to a hosted
+# runner is the only branch-independent rule. The org-level fork-PR approval gate still applies
+# on top. This repo's ruleset has no merge queue yet; merge_group stays in `on:` for alignment
+# with go-kure/.github and the other managed repos.
+
 env:
-  MISE_EXEC_AUTO_INSTALL: "false"
+  # The setting `mise run` honours (`mise help run`, --skip-tools); MISE_EXEC_AUTO_INSTALL does
+  # not stop a task run from installing. Tools come from jdx/mise-action's install step only.
+  MISE_TASK_RUN_AUTO_INSTALL: "false"
 
 jobs:
   lint:
-    runs-on: autops-kube-ginsys
+    runs-on: ${{ (github.event_name == 'merge_group' || github.event.pull_request.head.repo.fork) && 'ubuntu-latest' || 'autops-kube-ginsys' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -31,7 +42,7 @@ jobs:
       - run: mise run lint
 
   test:
-    runs-on: autops-kube-ginsys
+    runs-on: ${{ (github.event_name == 'merge_group' || github.event.pull_request.head.repo.fork) && 'ubuntu-latest' || 'autops-kube-ginsys' }}
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -41,7 +52,7 @@ jobs:
       - run: mise run test
 
   action-pins:
-    runs-on: autops-kube-ginsys
+    runs-on: ${{ (github.event_name == 'merge_group' || github.event.pull_request.head.repo.fork) && 'ubuntu-latest' || 'autops-kube-ginsys' }}
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -53,7 +64,7 @@ jobs:
     # Aggregator: fails on any failed or cancelled job, so one required context covers them all.
     if: always()
     needs: [lint, test, action-pins]
-    runs-on: autops-kube-ginsys
+    runs-on: ${{ (github.event_name == 'merge_group' || github.event.pull_request.head.repo.fork) && 'ubuntu-latest' || 'autops-kube-ginsys' }}
     timeout-minutes: 2
     steps:
       - name: Fail unless every job succeeded
