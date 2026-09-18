@@ -19,8 +19,15 @@ go-kure/.github. Read `README.md` first: it states what lives here and what live
   and snapshotting the labels of every managed repo.
 - **An `area/` label created live is back-filled in the same PR** into `standards/labels.json` and
   `standards/labels.md`; otherwise the next apply deletes it.
-- **No workstation paths, session links or private-repo references** in anything committed or
-  posted to the forge.
+- **No workstation paths or session links** in anything committed or posted to the forge — a `~/`
+  path, a local script name or a `claude.ai/code/session_...` link never appears in committed text.
+- **No references to a private repo's specific issues, PRs or other content** — naming what a
+  private repo's issue or PR says, or linking to one, discloses activity a public reader has no
+  other way to see. **Naming a private managed repo plainly for governance purposes is not
+  covered by this rule**: the managed-repos list, a `repos:` label scope, and explaining why a
+  Free-plan setting is pinned to a repo's live value all need the literal repo slug to operate,
+  and this is unavoidable in a repo whose whole purpose is governing every managed repo, private
+  or not — parley's own README already named it through its private period before it went public.
 - Conventional commits (`feat:`, `fix:`, `docs:`, `ci:`, `chore:`); one PR per change; code and
   docs change together.
 
