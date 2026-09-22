@@ -66,6 +66,10 @@ github_repos:
             require_code_owner_review: false
             require_last_push_approval: false
             required_review_thread_resolution: true
+            # Declared explicitly because the API defaults it to true when omitted: it then
+            # blocks a PR whose commits are not attributed to the PR author even at
+            # required_approving_review_count: 0.
+            require_extra_approval_for_unattributed_changes: false
           required_status_checks:
             # strict: true — without a merge queue, only up-to-date enforcement guarantees
             # the checks ran against what actually lands.
@@ -99,6 +103,10 @@ github_repos:
             require_code_owner_review: false
             require_last_push_approval: false
             required_review_thread_resolution: true
+            # Declared explicitly because the API defaults it to true when omitted: it then
+            # blocks a PR whose commits are not attributed to the PR author even at
+            # required_approving_review_count: 0.
+            require_extra_approval_for_unattributed_changes: false
           required_status_checks:
             # strict: false — the merge queue tests the real merged result, so up-to-date
             # enforcement on the PR branch would only add rebases.
@@ -152,6 +160,10 @@ github_repos:
             require_code_owner_review: false
             require_last_push_approval: false
             required_review_thread_resolution: true
+            # Declared explicitly because the API defaults it to true when omitted: it then
+            # blocks a PR whose commits are not attributed to the PR author even at
+            # required_approving_review_count: 0.
+            require_extra_approval_for_unattributed_changes: false
           required_status_checks:
             # strict: false — the merge queue tests the real merged result, so up-to-date
             # enforcement on the PR branch would only add rebases.
