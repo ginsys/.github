@@ -87,7 +87,7 @@ jobs:
           done
 
       - name: Run PR review threads
-        uses: go-kure/.github/.github/actions/pr-review-threads@ae10bfb8f99fd5ddcee3185d1a420be14b201e3c # main 2026-09-07 (go-kure/.github#154 merge)
+        uses: go-kure/.github/.github/actions/pr-review-threads@31dcd8bdd2a3655fb1cccdcb1f5a928d7d70102e # main 2026-10-26 (go-kure/.github#294 merge)
         with:
           github-token: ${{ github.token }}
           pr-number: ${{ github.event.pull_request.number }}
