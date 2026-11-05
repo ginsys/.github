@@ -63,6 +63,12 @@
       "repos": ["bronzeward", "parley"]
     },
     {
+      "name": "status/deferred",
+      "color": "#FEF2C0",
+      "description": "The owner put the decision or work off; revisit later",
+      "repos": ["bronzeward"]
+    },
+    {
       "name": "area/api",
       "color": "#5319E7",
       "description": "Management API and UI: auth, RBAC, drafts, review, releases, operations, inventory",

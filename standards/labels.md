@@ -33,7 +33,7 @@ by the forge.
 | Category | Values | Rule |
 |---|---|---|
 | `type/` | `investigation`, `decision`, `specification`, `implementation`, `validation`, `bug`, `feature` | exactly one per issue |
-| `status/` | `in-progress`, `needs-review`, `needs-refinement` | `in-progress` and `needs-review` are mutually exclusive; `needs-refinement` may coexist with either |
+| `status/` | `in-progress`, `needs-review`, `needs-refinement`, `deferred` | `in-progress` and `needs-review` are mutually exclusive; `needs-refinement` may coexist with either; `deferred` (bronzeward only) marks work or a decision the owner put off, and the issue stays open |
 | `area/` | `api`, `database`, `secrets`, `compiler`, `publisher`, `operations`, `transport`, `observer`, `observability`, `design`, `docs`, `ci`, `store`, `dispatch`, `controller`, `adapters` | any number; open namespace (below) |
 | none | `dependencies`, `needs-human`, `unattended`, `security` | applied by Renovate to PRs; never chosen by a person |
 
@@ -72,7 +72,8 @@ onboarded, widen the scope of the labels it shares rather than duplicating entri
 
 `.github` carries only the generic labels: `type/bug`, `type/feature` and the four Renovate
 labels. bronzeward and parley both use the full work-type and `status/` label set for their
-tracking workflow; their `area/` labels differ per repo and stay scoped to it. `type/bug` and
+tracking workflow, except `status/deferred`, which only bronzeward declares so far; their `area/`
+labels differ per repo and stay scoped to it. `type/bug` and
 `type/feature` are declared on every managed repo on purpose: where the targets are declared, the
 settings script *renames* GitHub's default `bug`/`enhancement` labels to them, which keeps issue
 associations; where they are not, the defaults are plain extras and `apply` deletes them.
