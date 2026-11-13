@@ -18,8 +18,11 @@ env -u SHELLCHECK_OPTS shellcheck scripts/*.sh scripts/test/*.sh
 """
 
 [tasks.test]
-description = "Fixture tests for scripts/tracker-audit.sh"
-run = "bash scripts/test/tracker-audit-test.sh"
+description = "Fixture tests for scripts/tracker-audit.sh and the pr-review.yml proxy URL"
+run = """
+bash scripts/test/tracker-audit-test.sh
+bash scripts/test/pr-review-proxy-url-test.sh .
+"""
 
 [tasks.upstream-sync]
 description = "Clone or fast-forward go-kure/.github into upstream/ (gitignored)"

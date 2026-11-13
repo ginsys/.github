@@ -9,7 +9,9 @@
 #
 # Backend: the in-cluster claude proxy at http://claude-proxy.claude-proxy.svc:3456 (an
 # OpenAI-compatible /v1/chat/completions endpoint using the host's Claude Max credentials; no API
-# key secret). Reachable from `autops-kube-ginsys` runners only.
+# key secret). Reachable from `autops-kube-ginsys` runners only. The CALLER repo's `CCPROXY_URL`
+# variable overrides that address, resolved the same way as the mode below. An unset or empty
+# variable keeps the address above.
 #
 # Findings: in `advisory` mode the action posts one review comment and creates no threads; in
 # `enforce` mode each finding becomes a resolvable review thread that
@@ -93,7 +95,7 @@ jobs:
           pr-number: ${{ github.event.pull_request.number }}
           head-sha: ${{ github.event.pull_request.head.sha }}
           mode: ${{ vars.PR_REVIEW_THREADS_MODE || env.PR_REVIEW_THREADS_MODE }}
-          proxy-url: ${{ env.CCPROXY_URL }}
+          proxy-url: ${{ vars.CCPROXY_URL || env.CCPROXY_URL }}
           bot-login: 'github-actions[bot]'
           model: ${{ env.PR_REVIEW_MODEL }}
           max-tokens: ${{ env.PR_REVIEW_MAX_TOKENS }}
