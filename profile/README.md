@@ -8,7 +8,7 @@ self-hosted services, and a few CLIs.
 | [bronzeward](https://github.com/ginsys/bronzeward) | Talos configuration and machine management platform (design phase) |
 | [shelly-manager](https://github.com/ginsys/shelly-manager) | Go manager for Shelly smart-home devices: CLI, REST API, provisioning |
 | [forward-email](https://github.com/ginsys/forward-email) | CLI for the forwardemail.net API |
-| [opnsense-dyndns-hetzner](https://github.com/ginsys/opnsense-dyndns-hetzner) | Dynamic DNS for Hetzner Cloud DNS from OPNsense WAN addresses |
+| [wan-dns-sync](https://github.com/ginsys/wan-dns-sync) | Keeps DNS A records (Hetzner, deSEC) in step with OPNsense WAN addresses |
 | [truenas-cert-sync](https://github.com/ginsys/truenas-cert-sync) | Deploy certificates from a Kubernetes cluster to TrueNAS |
 
 Repository standards (settings policy, labels, shared workflows) live in
