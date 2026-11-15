@@ -28,6 +28,13 @@
 #
 # The `if:` excludes fork PRs (the proxy is not for third parties) but not drafts: a draft is
 # where convergence happens, so the review runs there too.
+#
+# Last compared with go-kure/.github's pr-review.yml at 4d9f0747 (the go-kure/.github#456 merge,
+# 2026-11-14), on 2026-11-15. Two gaps are deliberate: the `plan` and `review-producer` jobs (the
+# review pool) and the file backend (`PRT_REVIEW_BACKEND=file`). This org's runner uses the proxy
+# backend, which the action selects when that variable is unset, so neither is needed. The action's
+# `standards-source` input is not passed: its default, `action`, is how this wrapper already reads
+# the standards file (see PR_REVIEW_STANDARDS_FILE below).
 
 name: PR Review
 
