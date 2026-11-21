@@ -141,6 +141,12 @@
       "repos": ["bronzeward", "parley", "opsmaster"]
     },
     {
+      "name": "area/workflow-automation",
+      "color": "#5319E7",
+      "description": "Automation that moves work through review, CI, release and dependency flow",
+      "repos": [".github"]
+    },
+    {
       "name": "area/store",
       "color": "#5319E7",
       "description": "SQLite schema and state machine (internal/store)",
