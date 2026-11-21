@@ -34,7 +34,7 @@ by the forge.
 |---|---|---|
 | `type/` | `investigation`, `decision`, `specification`, `implementation`, `validation`, `bug`, `feature` | exactly one per issue |
 | `status/` | `in-progress`, `needs-review`, `needs-refinement`, `deferred` | `in-progress` and `needs-review` are mutually exclusive; `needs-refinement` may coexist with either; `deferred` (bronzeward only) marks work or a decision the owner put off, and the issue stays open |
-| `area/` | `api`, `database`, `secrets`, `compiler`, `publisher`, `operations`, `transport`, `observer`, `observability`, `design`, `docs`, `ci`, `store`, `dispatch`, `controller`, `adapters` | any number; open namespace (below) |
+| `area/` | `api`, `database`, `secrets`, `compiler`, `publisher`, `operations`, `transport`, `observer`, `observability`, `design`, `docs`, `ci`, `store`, `dispatch`, `controller`, `adapters`, `workflow-automation` (`.github` only) | any number; open namespace (below) |
 | none | `dependencies`, `needs-human`, `unattended`, `security` | applied by Renovate to PRs; never chosen by a person |
 
 No `priority/` and no `effort/` in the shared taxonomy: milestones order the work. No
@@ -70,8 +70,9 @@ Every label carries a `repos` list. A label without `repos` applies to every man
 scoped one is required only on the listed repos and reported as extra elsewhere. When a repo is
 onboarded, widen the scope of the labels it shares rather than duplicating entries.
 
-`.github` carries only the generic labels: `type/bug`, `type/feature` and the four Renovate
-labels. bronzeward and parley both use the full work-type and `status/` label set for their
+`.github` carries only the generic labels: `type/bug`, `type/feature`, the four Renovate
+labels and `area/workflow-automation`, which marks issues about the automation that moves work
+through review, CI, release and dependency flow. bronzeward and parley both use the full work-type and `status/` label set for their
 tracking workflow, except `status/deferred`, which only bronzeward declares so far; their `area/`
 labels differ per repo and stay scoped to it. `type/bug` and
 `type/feature` are declared on every managed repo on purpose: where the targets are declared, the
