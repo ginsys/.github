@@ -121,17 +121,21 @@ changelog section there: these are the release notes, in a dry run too.
    action with no tag makes B only;
 2. pushes the branch, opens the pull request and turns on auto-merge: with `--auto` alone when the
    default branch has a merge queue, otherwise with `--auto --rebase`;
-3. runs `wait-merge.sh`, then refuses to go on unless A as merged (A') has the subject `release: <tag>`,
-   `VERSION` at the tag, the changelog section, and the commit it was cut from as its parent;
+3. runs `wait-merge.sh`, then refuses to go on unless A as merged (A') and B as merged (B') are single-parent
+   commits on the commit the release was cut from, with exactly the trees this run built, and A' has the
+   subject `release: <tag>`;
 4. creates the tag on A' through the API with `TAG_TOKEN` (the workflow token: a tag made with it
    starts no workflow). The other `gh` calls use `GH_TOKEN`.
 
 `DRY_RUN` is 1 unless set, so a bare run never releases. `wait-merge.sh` reads the pull request and the
 tip of the default branch on every poll. If the tip is no longer the commit the release was cut from,
 it turns auto-merge off, closes the pull request and deletes the branch: nothing reached the default
-branch, and a rerun cuts a new release. A closed pull request, a deadline of 90 minutes of elapsed time,
-or six failed reads in a row also end the run. The tag call is tried three times, then the exact
-command is printed.
+branch, and a rerun cuts a new release. The 90-minute deadline (elapsed time) and six failed reads in a
+row (of the pull request, or of the tip, counted together) end the run the same way, so that a merge
+cannot happen after the script has stopped watching; a closed pull request ends it at once. If the
+cancelling itself fails, the message says so and that the pull request may still merge. A `VERSION`
+number of more than nine digits is refused. The tag call is tried three times, then the exact command
+is printed.
 
 ### A release that merged and was never tagged
 
