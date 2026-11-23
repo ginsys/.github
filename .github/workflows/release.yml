@@ -6,9 +6,9 @@ name: Release
 # stops after `guard`. A caller pins this workflow by commit SHA, because the real run holds the App key.
 #
 # The caller grants `contents: write` and `pull-requests: read` to the job that calls this workflow.
-# The concurrency group is
-# on the `release` job alone and never cancels: the group may not be built from `github.workflow`,
-# which inside a called workflow is the caller's name (scripts/test/called-workflow-concurrency-test.sh).
+# The concurrency group is on the `release` job alone and never cancels: the group may not be built
+# from `github.workflow`, which inside a called workflow is the caller's name
+# (scripts/test/called-workflow-concurrency-test.sh).
 
 on:
   workflow_call:

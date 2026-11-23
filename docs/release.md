@@ -214,7 +214,7 @@ This repository has no tags yet, so the first pins are moved by hand.
 
 **Two jobs.**
 
-1. `guard` has no secret and no environment, and `contents: read`. It runs `release.sh --check` from this
+1. `guard` has no secret and no environment, and `contents: read` and `pull-requests: read`. It runs `release.sh --check` from this
    repository's scripts at the workflow's own commit, which refuses what the script refuses and prints
    the plan. It uploads the release notes as the run artifact `changelog-notes` (for an action that makes
    a tag), in a dry run too. A dry run ends here.
