@@ -45,8 +45,8 @@ onboarding hits the same three walls until it too goes public.
 | `.github/workflows/pr-review.yml` | Reusable Claude PR review: go-kure's job wrapper on ginsys runners, upstream's `pr-review-threads` action pinned |
 | `.github/workflows/changelog-fragment.yml` | Reusable PR check that a change carries a changelog fragment (`docs/release.md`) |
 | `scripts/tracker-audit.sh` | The audit itself, fixture-tested by `scripts/test/tracker-audit-test.sh` |
-| `scripts/release/` | Changelog assembler and fragment check, fixture-tested by `scripts/test/changelog-test.sh` |
-| `docs/release.md` | The release standard: fragments and the PR check (more as the workflows land) |
+| `scripts/release/` | Changelog assembler and fragment check, the release script and the merge wait, fixture-tested by `scripts/test/changelog-test.sh` and `scripts/test/release-test.sh` |
+| `docs/release.md` | The release standard: fragments, the PR check and the release script (more as the workflows land) |
 | `.github/workflows/ci.yml` | This repo's own checks: lint, tests, action pins |
 | `profile/README.md` | Organization profile |
 

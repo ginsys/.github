@@ -89,3 +89,54 @@ change to documentation only). The required check name is the caller's job name;
 To run it by hand, change into the repository to check and run
 `BASE_REF=main HEAD_REF_NAME=<branch> bash <this repository>/scripts/release/check-changelog-fragment.sh`.
 It compares `HEAD` with `origin/main`, so fetch that first.
+
+## The release script
+
+`release.sh` holds the release logic, and `wait-merge.sh` waits for the release pull request. Both
+work on the git repository of the current directory. `VERSION` holds the version, as `vX.Y.Z` or
+`vX.Y.Z-alpha|beta|rc.N`. One run does one action:
+
+| Action | Tag | `VERSION` after |
+|---|---|---|
+| `release` | `VERSION` as it is | the next number of the same stage |
+| `release-as-beta`, `release-as-rc` | that stage, `.0` (as it is if `VERSION` is already at that stage) | the next number |
+| `release-as-stable` | `vX.Y.Z` | `vX.Y.(Z+1)-alpha.0` |
+| `start-next-minor`, `start-next-major` | none | the next line, `alpha.0` |
+| `skip-prerelease-number` | none | the next number |
+
+A tagging action needs at least one fragment (exit 3 if there is none). Going back a stage is refused.
+
+**`release.sh --check`** only reads. It refuses an unknown action, a run from a tag, a real run off the
+default branch, a bad `VERSION`, a tag that exists (as a tag, or as the next `VERSION`), a
+`release/<tag>` branch or open pull request that exists, a dispatched commit that is not the tip of
+the default branch, and a newest changelog section with no tag (see below). It reads whether the
+default branch has a merge queue, prints the plan, and writes `tag`, `version`, `next_version`,
+`queue` and `changelog_date` to `GITHUB_OUTPUT`. With `RELEASE_NOTES_FILE` set it writes the
+changelog section there: these are the release notes, in a dry run too.
+
+**`release.sh` with `DRY_RUN=0`** does the same checks, then:
+
+1. cuts `release/<tag>` (or `release/<next version>` for an action with no tag) from the tip, with commit
+   A, `release: <tag>` (the changelog cut, `VERSION` at the tag), and commit B (`VERSION` moved on). An
+   action with no tag makes B only;
+2. pushes the branch, opens the pull request and turns on auto-merge: with `--auto` alone when the
+   default branch has a merge queue, otherwise with `--auto --rebase`;
+3. runs `wait-merge.sh`, then refuses to go on unless A as merged (A') has the subject `release: <tag>`,
+   `VERSION` at the tag, the changelog section, and the commit it was cut from as its parent;
+4. creates the tag on A' through the API with `TAG_TOKEN` (the workflow token: a tag made with it
+   starts no workflow). The other `gh` calls use `GH_TOKEN`.
+
+`DRY_RUN` is 1 unless set, so a bare run never releases. `wait-merge.sh` reads the pull request and the
+tip of the default branch on every poll. If the tip is no longer the commit the release was cut from,
+it turns auto-merge off, closes the pull request and deletes the branch: nothing reached the default
+branch, and a rerun cuts a new release. A closed pull request, a deadline of 90 minutes of elapsed time,
+or six failed reads in a row also end the run. The tag call is tried three times, then the exact
+command is printed.
+
+### A release that merged and was never tagged
+
+If another change merges in the seconds after the last poll, A' sits on a newer tip and the script makes
+no tag. `CHANGELOG.md` then holds a section for a tag that does not exist. The next `release.sh --check`
+refuses until that is repaired: open a pull request that reverts commit `release: <tag>` (it restores the
+fragments and removes the section). `VERSION` stays where it is, and the skipped number is never
+released. For `release-as-stable` the skipped stable number needs the owner.
