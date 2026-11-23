@@ -180,9 +180,16 @@ eq "preview with an empty [Unreleased]: the fragment sections only" '### Added
 ### Fixed
 - Fix b. Fixes owner/repo#12.' "$OUT"
 
+# section_raw <file> <version>: every line between the cut section's heading and the next heading,
+# untrimmed, for the layout check below.
+section_raw() {
+	sed -n "/^## \[$2\] - /,/^## \[/p" "$1" | sed '1d' | sed '$d'
+}
+
 # The preview is the notes of a release, the written section is its CHANGELOG entry: one body, two
-# readers. For the same input the preview must equal the section --write cuts, byte for byte, and
-# the reader of the preview must never see a second rendering.
+# readers. For the same input the preview must equal the section --write cuts line for line, and
+# the file must hold that section with exactly one blank line before it and one after it, so the
+# trimmed comparison cannot hide a blank line the file keeps and the preview drops.
 check_equal() { # <case name>, in the current fixture
 	local name=$1 preview body
 	run bash "$ASSEMBLE"
@@ -192,6 +199,13 @@ check_equal() { # <case name>, in the current fixture
 	[ "$RC" -eq 0 ] || { bad "$name: the write ran" "exit $RC: $OUT"; return; }
 	body=$(section_body "$FX/CHANGELOG.md" 1.2.3)
 	eq "preview equals the written section: $name" "$body" "$preview"
+	printf '\n%s\n\n' "$preview" >"$T/layout.want"
+	section_raw "$FX/CHANGELOG.md" 1.2.3 >"$T/layout.got"
+	if cmp -s "$T/layout.want" "$T/layout.got"; then
+		ok "the written section is the preview with one blank line each side: $name"
+	else
+		bad "the written section is the preview with one blank line each side: $name" "$(diff "$T/layout.want" "$T/layout.got")"
+	fi
 }
 
 newfx_empty equal-one
@@ -230,7 +244,7 @@ has "unknown section: names the file" "6-b.md" "$OUT"
 eq "unknown section: nothing written" "" "$(cd "$FX" && fxgit status --porcelain -- CHANGELOG.md)"
 eq "unknown section: no fragment removed" 2 "$(nfrags)"
 
-for badname in 'Fix-thing.md' 'abc.md' '12.md' '12-Foo.md' '12-a_b.md'; do
+for badname in 'Fix-thing.md' 'abc.md' '12.md' '12-Foo.md' '12-a_b.md' '12-é.md'; do
 	newfx badname
 	printf 'Fixed\n- text.\n' >"$FX/changelog.d/$badname"
 	run bash "$ASSEMBLE"
@@ -329,6 +343,29 @@ frag 3-a.md Added '- Add a.'
 run env CHANGELOG_DATE=31-12-2031 bash "$ASSEMBLE" --write 1.2.3
 eq "write: a malformed CHANGELOG_DATE is refused (exit 2)" 2 "$RC"
 eq "write: a malformed CHANGELOG_DATE changes nothing" "" "$(cd "$FX" && fxgit status --porcelain -- CHANGELOG.md)"
+newfx date-impossible
+frag 3-a.md Added '- Add a.'
+run env CHANGELOG_DATE=2026-02-31 bash "$ASSEMBLE" --write 1.2.3
+eq "write: a date with the shape and no calendar day is refused (exit 2)" 2 "$RC"
+eq "write: an impossible date changes nothing" "" "$(cd "$FX" && fxgit status --porcelain -- CHANGELOG.md)"
+eq "write: an impossible date leaves the fragment" 1 "$(nfrags)"
+newfx date-leap
+frag 3-a.md Added '- Add a.'
+run env CHANGELOG_DATE=2024-02-29 bash "$ASSEMBLE" --write 1.2.3
+eq "write: a leap day is accepted (exit 0)" 0 "$RC"
+
+# A locked index makes "git rm" fail. The run must then change nothing: with CHANGELOG.md already
+# replaced and the fragments still there, a retry would cut the same entries twice.
+newfx index-locked
+frag 3-a.md Added '- Add a.'
+(cd "$FX" && fxgit add -A && fxgit commit -q -m frags)
+BEFORE=$(cat "$FX/CHANGELOG.md")
+: >"$FX/.git/index.lock"
+run env CHANGELOG_DATE=2026-01-02 bash "$ASSEMBLE" --write 1.2.3
+rm -f "$FX/.git/index.lock"
+if [ "$RC" -ne 0 ]; then ok "locked index: the write is refused"; else bad "locked index: the write is refused" "exit was 0"; fi
+eq "locked index: CHANGELOG.md unchanged" "$BEFORE" "$(cat "$FX/CHANGELOG.md")"
+eq "locked index: the fragment is still there" 1 "$(nfrags)"
 
 # The release is written beside CHANGELOG.md and renamed over it, so a failed
 # write leaves the original whole: with the directory unwritable no temporary
@@ -454,6 +491,36 @@ printf 'Fixed\n- text.\n' >"$FX/changelog.d/sub/7-a.md"
 commit_all c
 check HEAD_REF_NAME=fix/7-a
 eq "check: a fragment in a subdirectory is not one (exit 1)" 1 "$RC"
+check HEAD_REF_NAME=fix/7-a PR_NO_CHANGELOG=true
+eq "check: the label no-changelog does not excuse a fragment in a subdirectory (exit 1)" 1 "$RC"
+check HEAD_REF_NAME=release/v7.7.7
+eq "check: a release branch does not excuse a fragment in a subdirectory (exit 1)" 1 "$RC"
+
+# git quotes a name with non-ASCII characters in its default output: the check must still see the
+# fragment, so the label cannot skip it and a valid fragment beside it cannot pass for it.
+newfx check-quoted-name
+prbranch ci/17-a
+frag 17-é.md Fixed '- Fix.'
+commit_all c
+check HEAD_REF_NAME=ci/17-a PR_NO_CHANGELOG=true
+eq "check: a non-ASCII fragment name under the label is validated (exit 1)" 1 "$RC"
+has "check: FAIL names the non-ASCII fragment" "17-é.md" "$OUT"
+frag 17-b.md Fixed '- Fix b.'
+commit_all c2
+check HEAD_REF_NAME=ci/17-a
+eq "check: a non-ASCII fragment name beside a valid one fails (exit 1)" 1 "$RC"
+
+# A base ref with no merge base makes the diff fail: an ERROR, never an empty list that skips or passes.
+newfx check-no-merge-base
+(cd "$FX" && fxgit checkout -q --orphan unrelated && fxgit rm -rf -q . && printf 'x\n' >x.txt && fxgit add x.txt && fxgit commit -q -m unrelated && fxgit update-ref refs/remotes/origin/main unrelated && fxgit checkout -q main) >/dev/null 2>&1
+prbranch ci/18-a
+printf 'ci\n' >"$FX/ci.txt"
+commit_all c
+check HEAD_REF_NAME=ci/18-a PR_NO_CHANGELOG=true
+eq "check: a base with no merge base is an error under the label (exit 2)" 2 "$RC"
+has "check: ERROR line names the diff" "ERROR git diff" "$OUT"
+check HEAD_REF_NAME=release/v1.0.0
+eq "check: a base with no merge base is an error on a release branch (exit 2)" 2 "$RC"
 
 newfx check-nobase
 (cd "$FX" && fxgit update-ref -d refs/remotes/origin/main)

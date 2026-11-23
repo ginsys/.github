@@ -25,6 +25,9 @@
 # written), 3 there are no fragments.
 # CHANGELOG_DATE=YYYY-MM-DD overrides today's date, so a caller that read the date once keeps it.
 set -euo pipefail
+# The C locale: [a-z] in the name rule must not match an accented letter, and sort -V must order the
+# same on every runner.
+export LC_ALL=C
 
 SECTIONS="Added Changed Deprecated Removed Fixed Security"
 NAME_RE='^[0-9]+-[a-z0-9][a-z0-9-]*\.md$'
@@ -228,25 +231,39 @@ if [ "$mode" = preview ]; then
 fi
 
 date=${CHANGELOG_DATE:-$(date +%F)}
-[[ $date =~ $DATE_RE ]] || {
-	echo "ERROR CHANGELOG_DATE '$date' must be YYYY-MM-DD" >&2
+# The shape, then the calendar: 2026-02-31 has the shape and is no date.
+if ! [[ $date =~ $DATE_RE ]] || [ "$(date -d "$date" +%F 2>/dev/null)" != "$date" ]; then
+	echo "ERROR CHANGELOG_DATE '$date' must be a real date, YYYY-MM-DD" >&2
 	exit 2
-}
+fi
 
 new_changelog "$version" "$date" "$gen" >"$tmp/new"
 
-# Write beside CHANGELOG.md and rename over it: a failed or interrupted write
-# leaves the original whole, and the fragments go only after the rename.
+# Write beside CHANGELOG.md, then rename over it: a failed or interrupted write leaves the original
+# whole. The tracked fragments go first, in one "git rm" that takes the index lock before it removes
+# anything, so a locked index fails the run with CHANGELOG.md and every fragment as they were. The
+# rename follows at once: a retry after a run that failed here would otherwise cut the same entries twice.
 next=$(mktemp "$ROOT/$CHANGELOG.XXXXXX")
 cp -p "$CHANGELOG" "$next"
 cat "$tmp/new" >"$next"
-mv -f "$next" "$CHANGELOG"
-next=
+tracked=()
+loose=()
 for n in "${names[@]}"; do
 	if git ls-files --error-unmatch -- "$FRAG_DIR/$n" >/dev/null 2>&1; then
-		git rm -q -f -- "$FRAG_DIR/$n"
+		tracked+=("$FRAG_DIR/$n")
 	else
-		rm -f -- "$FRAG_DIR/$n"
+		loose+=("$FRAG_DIR/$n")
 	fi
 done
+if [ "${#tracked[@]}" -gt 0 ]; then
+	git rm -q -f -- "${tracked[@]}"
+fi
+mv -f "$next" "$CHANGELOG" || {
+	echo "ERROR could not replace $CHANGELOG; restore the fragments with: git checkout HEAD -- $FRAG_DIR" >&2
+	exit 1
+}
+next=
+if [ "${#loose[@]}" -gt 0 ]; then
+	rm -f -- "${loose[@]}"
+fi
 echo "wrote $CHANGELOG: ## [$version] - $date from ${#names[@]} fragment(s); fragments removed"
