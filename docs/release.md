@@ -133,25 +133,28 @@ it turns auto-merge off, closes the pull request and deletes the branch: nothing
 branch, and a rerun cuts a new release. The 90-minute deadline (elapsed time) and six failed reads in a
 row (of the pull request, or of the tip, counted together) end the run the same way, so that a merge
 cannot happen after the script has stopped watching; a closed pull request ends it at once. If the
-cancelling itself fails, the message says so and that the pull request may still merge.
-
-A cancelled or timed-out run gets an interrupt and then a terminate signal, a few seconds apart. The
-runner sends them to the process of the step only, never to its children. So the step must run
-`release.sh` as that process (`exec scripts/release/release.sh`, not a call from a longer shell
-script): `release.sh` passes the signal on to the wait, which cancels the release as above, and then
-waits for it to finish, so a pull request that merged anyway still gets its commits checked and its
-tag. A kill with no warning (the runner lost) skips all of this, and so does a signal in the second
-it takes to turn auto-merge on; the next `--check` then stops at the untagged section as described
-below. The job also needs a `timeout-minutes` larger than the 90-minute deadline plus the steps after
-it, so that the script's own deadline is the one that fires.
+cancelling itself fails, the message says so and that the pull request may still merge. The calling
+job needs a `timeout-minutes` larger than the 90-minute deadline plus the steps after it, so that the
+script's own deadline is the one that fires.
 
 A `VERSION` number of more than nine digits is refused. The tag call is tried three times, then the
 exact command is printed.
 
-### A release that merged and was never tagged
+### A run that was interrupted
 
-If another change merges in the seconds after the last poll, A' sits on a newer tip and the script makes
-no tag. `CHANGELOG.md` then holds a section for a tag that does not exist. The next `release.sh --check`
-refuses until that is repaired: open a pull request that reverts commit `release: <tag>` (it restores the
-fragments and removes the section). `VERSION` stays where it is, and the skipped number is never
-released. For `release-as-stable` the skipped stable number needs the owner.
+The script does not catch a cancelled run, a timeout or a lost runner: a kill leaves whatever state the
+run had reached. Two states are possible, and `release.sh --check` finds both. It only reads and
+refuses; a person runs the repair.
+
+- **The pull request is still open.** `--check` refuses because `release/<tag>` exists on the remote
+  or has an open pull request, and says so. Turn auto-merge off, close the pull request, delete the
+  branch, and run again. Until then the pull request can still merge by itself, and that is the second
+  state.
+- **The release merged and was never tagged.** `CHANGELOG.md` holds a section for a tag that does not
+  exist. `--check` refuses until that is repaired: open a pull request that reverts commit
+  `release: <tag>` (it restores the fragments and removes the section). `VERSION` stays where it is,
+  and the skipped number is never released. For `release-as-stable` the skipped stable number needs
+  the owner.
+
+The same second state follows if another change merges in the seconds after the last poll: the
+release commit sits on a newer tip and the script makes no tag.
