@@ -20,6 +20,12 @@ on:
 permissions:
   contents: read
 
+# `shell: bash` runs with -e and pipefail: a failed read in the snapshot pipeline fails the step
+# instead of leaving a shorter list that hashes the same before and after.
+defaults:
+  run:
+    shell: bash
+
 jobs:
   before:
     runs-on: ubuntu-latest
@@ -38,7 +44,7 @@ jobs:
           {
             gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/" --jq '.[] | "tag " + .ref + " " + .object.sha'
             gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/heads/release/" --jq '.[] | "branch " + .ref + " " + .object.sha'
-            gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,headRefName --jq '.[] | select(.headRefName | startswith("release/")) | "pr " + (.number | tostring) + " " + .headRefName'
+            gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number,headRefName --jq '.[] | select(.headRefName | startswith("release/")) | "pr " + (.number | tostring) + " " + .headRefName'
           } | sort >refs.txt
           echo "records: $(wc -l <refs.txt)"
           cat refs.txt
@@ -69,7 +75,7 @@ jobs:
           {
             gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/" --jq '.[] | "tag " + .ref + " " + .object.sha'
             gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/heads/release/" --jq '.[] | "branch " + .ref + " " + .object.sha'
-            gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,headRefName --jq '.[] | select(.headRefName | startswith("release/")) | "pr " + (.number | tostring) + " " + .headRefName'
+            gh pr list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --json number,headRefName --jq '.[] | select(.headRefName | startswith("release/")) | "pr " + (.number | tostring) + " " + .headRefName'
           } | sort >refs.txt
           echo "records: $(wc -l <refs.txt)"
           cat refs.txt
