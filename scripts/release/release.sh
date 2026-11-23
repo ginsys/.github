@@ -82,9 +82,19 @@ parse_version() {
 	V_PATCH=${BASH_REMATCH[3]}
 	V_TYPE=${BASH_REMATCH[5]}
 	V_NUM=${BASH_REMATCH[6]}
-	# Bash arithmetic is 64-bit: a longer number would wrap around into an older release line.
-	[ "${#V_MAJOR}" -le 9 ] && [ "${#V_MINOR}" -le 9 ] && [ "${#V_PATCH}" -le 9 ] && [ "${#V_NUM}" -le 9 ] \
-		|| die "Invalid version '$1': a number of more than 9 digits is not supported."
+	check_bounds "$1" "Invalid version '$1'"
+}
+
+# check_bounds <version> <what to say>: every number in it has at most 9 digits. Bash arithmetic is
+# 64-bit, so a longer number would wrap around into an older release line, and a 9-digit one plus 1
+# would be a 10-digit number that the next run refuses.
+check_bounds() {
+	local n
+	# The unquoted expansion splits the digit groups on purpose.
+	# shellcheck disable=SC2086
+	for n in ${1//[!0-9]/ }; do
+		[ "${#n}" -le 9 ] || die "$2: a number of more than 9 digits is not supported."
+	done
 }
 
 stage_order() {
@@ -145,6 +155,8 @@ plan_action() {
 		BUMP_MSG="chore: bump prerelease: $CURRENT -> $NEXT"
 		;;
 	esac
+	# The next VERSION must be one this script accepts, or the run after this one is stuck.
+	check_bounds "$NEXT" "VERSION $CURRENT would become $NEXT, which the next run refuses"
 }
 
 # ── Checks (all of them read only) ────────────────────────────────────────
