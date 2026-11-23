@@ -146,13 +146,13 @@ case "$1 $2" in
 "pr merge")
 	case " $* " in
 	*" --disable-auto "*)
-		[ ! -e "$S/cancel-fail" ] || { echo "HTTP 403" >&2; exit 1; }
+		[ ! -e "$S/cancel-fail" ] && [ ! -e "$S/disable-fail" ] || { echo "HTTP 403" >&2; exit 1; }
 		if [ "$mode" = latemerge ] && [ ! -e "$S/merged" ]; then merge; fi # the merge slips in as it is cancelled
 		;;
 	esac
 	;;
 "pr close")
-	[ ! -e "$S/cancel-fail" ] || { echo "HTTP 403" >&2; exit 1; }
+	[ ! -e "$S/cancel-fail" ] && [ ! -e "$S/close-fail" ] || { echo "HTTP 403" >&2; exit 1; }
 	[ ! -e "$S/merged" ] || { echo "already merged" >&2; exit 1; }
 	echo closed >"$S/closed"
 	case " $* " in *" --delete-branch "*) g -C "$R" update-ref -d "refs/heads/$(cat "$S/pr-head")" ;; esac
@@ -402,6 +402,14 @@ newfx g-bignum v18446744073709551616.0.0
 rel RELEASE_ACTION=start-next-major -- --check
 refuses "a number that would wrap around 64 bits" 1 "more than 9 digits"
 
+newfx g-nextbig v0.1.0-alpha.999999999
+rel RELEASE_ACTION=skip-prerelease-number -- --check
+refuses "a VERSION whose next number the next run would refuse" 1 "which the next run refuses"
+rel RELEASE_ACTION=release -- --check
+refuses "a release whose next VERSION the next run would refuse" 1 "which the next run refuses"
+rel RELEASE_ACTION=release-as-rc -- --check
+eq "an action that resets the number is still allowed" 0 "$RC"
+
 newfx g-rules
 touch "$GHS/rules-fail"
 rel -- --check
@@ -573,6 +581,22 @@ rel DRY_RUN=0 WAIT_DEADLINE=1 WAIT_POLL=1 --
 eq "a cancel that fails: red" 1 "$RC"
 has "a cancel that fails: says it may still merge" "may still merge" "$OUT"
 lacks "a cancel that fails: does not claim a clean cancel" "Auto-merge is off" "$OUT"
+
+newfx closefail
+echo never >"$GHS/mode"
+touch "$GHS/close-fail"
+rel DRY_RUN=0 WAIT_DEADLINE=1 WAIT_POLL=1 --
+eq "auto-merge off but the close fails: red" 1 "$RC"
+has "auto-merge off but the close fails: says to close it by hand" "could not be closed" "$OUT"
+lacks "auto-merge off but the close fails: no claim that it is closed" "is closed and" "$OUT"
+
+newfx disablefail
+echo never >"$GHS/mode"
+touch "$GHS/disable-fail"
+rel DRY_RUN=0 WAIT_DEADLINE=1 WAIT_POLL=1 --
+eq "the close works but auto-merge stays on: red" 1 "$RC"
+has "the close works but auto-merge stays on: says so" "could not turn auto-merge off" "$OUT"
+lacks "the close works but auto-merge stays on: no claim that auto-merge is off" "Auto-merge is off" "$OUT"
 
 newfx latemerge
 echo latemerge >"$GHS/mode"
