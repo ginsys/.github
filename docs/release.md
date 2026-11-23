@@ -331,9 +331,23 @@ picks up. A dry run builds for real, so it proves the build.
 
 | | |
 |---|---|
-| Inputs | `tag` and `sha` (required), `go-version-file` (default `go.mod`) |
+| Inputs | `tag` and `sha` (required), `go-version-file` (default `go.mod`), `node-version-file`, `pre-build` and `post-build` (all three empty by default) |
 | Grants | `contents: read` |
-| Runs | `goreleaser release --snapshot --clean` with `RELEASE_VERSION=<tag>` in the environment, GoReleaser pinned here to an exact version, then `check-dist.sh` |
+| Runs | Go, then Node.js if `node-version-file` is set, then `pre-build` if set, then `goreleaser release --snapshot --clean` with `RELEASE_VERSION=<tag>` in the environment (GoReleaser pinned here to an exact version), then `post-build` if set, then `check-dist.sh` |
+
+**Files built outside GoReleaser.** A repository whose archives need something built first, such as a
+web bundle with `npm`, sets the three optional inputs; a caller that sets none gets the build above,
+unchanged. `node-version-file` names a file in the repository that `actions/setup-node` reads the
+version from (`package.json`, `.nvmrc`, `mise.toml`), and no Node.js cache is kept. `pre-build` and
+`post-build` are each a shell command (`bash -eo pipefail -c`) run in the repository root, with
+`RELEASE_VERSION` (the tag) and `RELEASE_SHA` (the commit) in the environment. The command reaches the
+shell only through the environment, so write it as a fixed string in the caller's workflow, never with
+event data such as a pull request title or a branch name. `pre-build` is for what GoReleaser's own
+configuration reads, such as a notices file. `post-build` is for a file that must sit in `dist/` and
+that GoReleaser did not make, because GoReleaser empties `dist/` when it starts. It runs before
+`check-dist.sh`, so such an archive must carry the version in its name, for example
+`<name>_<version>.tar.gz`. Other files, such as SBOMs, are not uploaded from `dist/` by this workflow: a
+job of the caller uploads its own `release-<name>` artifact, which the publish workflow collects.
 
 `check-dist.sh` fails unless `dist/` holds at least one archive (`*.tar.gz` or `*.zip`) and every
 archive's name contains the version, which is the tag without its `v`. Only the archives are uploaded.

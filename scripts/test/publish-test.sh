@@ -282,7 +282,7 @@ if [ -z "$out" ]; then ok "publish-github.yml keeps every rule"; else bad "publi
 # bgo_problems <build-go.yml copy>
 bgo_problems() {
 	local f=$1 c u
-	[ "$(yq '.on.workflow_call.inputs | keys | sort | join(",")' "$f")" = "go-version-file,sha,tag" ] || echo "the inputs are not tag, sha and go-version-file"
+	[ "$(yq '.on.workflow_call.inputs | keys | sort | join(",")' "$f")" = "go-version-file,node-version-file,post-build,pre-build,sha,tag" ] || echo "the inputs are not tag, sha, go-version-file, node-version-file, pre-build and post-build"
 	[ "$(yq '.on.workflow_call.inputs."go-version-file".default' "$f")" = go.mod ] || echo "go-version-file does not default to go.mod"
 	[ "$(yq '. | tostring' "$f" | grep -c 'secrets\.')" = 0 ] || echo "the workflow reads a secret"
 	[ "$(yq '.jobs.build.permissions | to_json(0)' "$f")" = '{"contents":"read"}' ] || echo "the build job holds more than contents: read"
@@ -293,6 +293,39 @@ bgo_problems() {
 	c=$(yq '.jobs.build.steps | to_entries | .[] | select(.value.run // "" | contains("check-dist.sh")) | .key' "$f")
 	u=$(yq '.jobs.build.steps | to_entries | .[] | select(.value.uses // "" | contains("upload-artifact")) | .key' "$f")
 	if [ -z "$c" ]; then echo "no step checks the archives"; elif [ "$c" -ge "${u:-0}" ]; then echo "the archives are checked after they are uploaded"; fi
+	bgo_hooks_problems "$f"
+}
+
+# bgo_hooks_problems <build-go.yml copy>: the three optional inputs and their steps.
+bgo_hooks_problems() {
+	local f=$1 n s g c
+	for n in node-version-file pre-build post-build; do
+		[ "$(yq ".on.workflow_call.inputs.\"$n\".default" "$f")" = "" ] || echo "$n does not default to empty"
+	done
+	for s in "Set up Node.js:node-version-file" "Run the pre-build command:pre-build" "Run the post-build command:post-build"; do
+		[ "$(yq ".jobs.build.steps[] | select(.name == \"${s%%:*}\") | .if" "$f")" = "\${{ inputs.${s##*:} != '' }}" ] || echo "the step ${s%%:*} does not run only when ${s##*:} is set"
+	done
+	for s in "pre-build:PRE_BUILD" "post-build:POST_BUILD"; do
+		g=$(yq ".jobs.build.steps[] | select(.name == \"Run the ${s%%:*} command\")" "$f")
+		[ "$(printf '%s\n' "$g" | yq '.env.'"${s##*:}")" = "\${{ inputs.${s%%:*} }}" ] || echo "the ${s%%:*} command is not passed through the environment"
+		[ "$(printf '%s\n' "$g" | yq '.run')" = "bash -eo pipefail -c \"\$${s##*:}\"" ] || echo "the ${s%%:*} command reaches the shell outside the environment"
+	done
+	[ "$(yq '.jobs.build.steps[] | select(.name == "Set up Node.js") | .with."package-manager-cache"' "$f")" = false ] || echo "the Node.js step keeps a package-manager cache"
+	g=$(yq '.jobs.build.steps | to_entries | .[] | select(.value.uses // "" | contains("goreleaser-action")) | .key' "$f")
+	[ -n "$g" ] || return 0
+	bgo_before() { # <step name> <index it must precede>
+		local i
+		i=$(yq ".jobs.build.steps | to_entries | .[] | select(.value.name == \"$1\") | .key" "$f")
+		[ -n "$i" ] && [ -n "$2" ] && [ "$i" -lt "$2" ]
+	}
+	bgo_before "Set up Go" "$g" || echo "Go is not set up before GoReleaser"
+	bgo_before "Set up Node.js" "$g" || echo "Node.js is not set up before GoReleaser"
+	bgo_before "Run the pre-build command" "$g" || echo "the pre-build command does not run before GoReleaser"
+	bgo_before "Build and archive" "$(yq ".jobs.build.steps | to_entries | .[] | select(.value.name == \"Run the post-build command\") | .key" "$f")" || echo "the post-build command does not run after GoReleaser"
+	c=$(yq '.jobs.build.steps | to_entries | .[] | select(.value.run // "" | contains("check-dist.sh")) | .key' "$f")
+	if [ -n "$c" ]; then
+		bgo_before "Run the post-build command" "$c" || echo "the post-build command does not run before the archives are checked"
+	fi
 }
 
 bgo_broken() { # <name> <perl substitution> <expected problem substring>
@@ -311,6 +344,15 @@ bgo_broken release-mode 's/release --snapshot --clean/release --clean/' "not run
 bgo_broken write-permission 's/contents: read/contents: write/' "more than contents: read"
 bgo_broken no-check 's/check-dist\.sh/true/' "no step checks the archives"
 bgo_broken wrong-artifact 's/name: release-go/name: dist/' "not uploaded as release-go"
+bgo_broken hook-default 's/(      pre-build:\n(?:        [^\n]*\n)*?        default: )\x27\x27/$1x/' "pre-build does not default to empty"
+bgo_broken node-ungated 's/        if: \$\{\{ inputs\.node-version-file != \x27\x27 \}\}\n//' "does not run only when node-version-file is set"
+bgo_broken pre-ungated 's/        if: \$\{\{ inputs\.pre-build != \x27\x27 \}\}\n//' "does not run only when pre-build is set"
+bgo_broken post-ungated 's/        if: \$\{\{ inputs\.post-build != \x27\x27 \}\}\n//' "does not run only when post-build is set"
+bgo_broken pre-inline 's/run: bash -eo pipefail -c "\$PRE_BUILD"/run: bash -eo pipefail -c "\${{ inputs.pre-build }}"/' "pre-build command reaches the shell outside the environment"
+bgo_broken post-no-env 's/          POST_BUILD: \$\{\{ inputs\.post-build \}\}\n//' "post-build command is not passed through the environment"
+bgo_broken node-cache 's/package-manager-cache: false/package-manager-cache: true/' "keeps a package-manager cache"
+bgo_broken pre-after-build 's/Run the pre-build command/XSWAPX/; s/Run the post-build command/Run the pre-build command/; s/XSWAPX/Run the post-build command/' "pre-build command does not run before GoReleaser"
+bgo_broken post-after-check 's/- name: Run the post-build command/- name: XSWAPX/; s/- name: Check the archives/- name: Run the post-build command/; s/- name: XSWAPX/- name: Check the archives/' "post-build command does not run before the archives are checked"
 
 out=$(bgo_problems "$BGO")
 if [ -z "$out" ]; then ok "build-go.yml keeps every rule"; else bad "build-go.yml keeps every rule" "$out"; fi
