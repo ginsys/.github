@@ -298,7 +298,7 @@ bgo_problems() {
 
 # bgo_hooks_problems <build-go.yml copy>: the three optional inputs and their steps.
 bgo_hooks_problems() {
-	local f=$1 n s g c
+	local f=$1 n s g c p
 	for n in node-version-file pre-build post-build; do
 		[ "$(yq ".on.workflow_call.inputs.\"$n\".default" "$f")" = "" ] || echo "$n does not default to empty"
 	done
@@ -321,6 +321,9 @@ bgo_hooks_problems() {
 	bgo_before "Set up Go" "$g" || echo "Go is not set up before GoReleaser"
 	bgo_before "Set up Node.js" "$g" || echo "Node.js is not set up before GoReleaser"
 	bgo_before "Run the pre-build command" "$g" || echo "the pre-build command does not run before GoReleaser"
+	p=$(yq '.jobs.build.steps | to_entries | .[] | select(.value.name == "Run the pre-build command") | .key' "$f")
+	bgo_before "Set up Go" "$p" || echo "the pre-build command runs before Go is set up"
+	bgo_before "Set up Node.js" "$p" || echo "the pre-build command runs before Node.js is set up"
 	bgo_before "Build and archive" "$(yq ".jobs.build.steps | to_entries | .[] | select(.value.name == \"Run the post-build command\") | .key" "$f")" || echo "the post-build command does not run after GoReleaser"
 	c=$(yq '.jobs.build.steps | to_entries | .[] | select(.value.run // "" | contains("check-dist.sh")) | .key' "$f")
 	if [ -n "$c" ]; then
@@ -351,6 +354,8 @@ bgo_broken post-ungated 's/        if: \$\{\{ inputs\.post-build != \x27\x27 \}\
 bgo_broken pre-inline 's/run: bash -eo pipefail -c "\$PRE_BUILD"/run: bash -eo pipefail -c "\${{ inputs.pre-build }}"/' "pre-build command reaches the shell outside the environment"
 bgo_broken post-no-env 's/          POST_BUILD: \$\{\{ inputs\.post-build \}\}\n//' "post-build command is not passed through the environment"
 bgo_broken node-cache 's/package-manager-cache: false/package-manager-cache: true/' "keeps a package-manager cache"
+bgo_broken pre-before-go 's/(      # The command reaches the shell only.*?"\$PRE_BUILD"\n\n)//s; $b=$1; s/(      - name: Set up Go\n)/$b$1/' "pre-build command runs before Go is set up"
+bgo_broken pre-before-node 's/(      # The command reaches the shell only.*?"\$PRE_BUILD"\n\n)//s; $b=$1; s/(      # package-manager-cache is off)/$b$1/' "pre-build command runs before Node.js is set up"
 bgo_broken pre-after-build 's/Run the pre-build command/XSWAPX/; s/Run the post-build command/Run the pre-build command/; s/XSWAPX/Run the post-build command/' "pre-build command does not run before GoReleaser"
 bgo_broken post-after-check 's/- name: Run the post-build command/- name: XSWAPX/; s/- name: Check the archives/- name: Run the post-build command/; s/- name: XSWAPX/- name: Check the archives/' "post-build command does not run before the archives are checked"
 
