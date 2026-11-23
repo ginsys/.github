@@ -230,7 +230,9 @@ This repository has no tags yet, so the first pins are moved by hand.
 **The wait is 50 minutes, because the App token lives one hour.** The release job sets
 `WAIT_DEADLINE=3000` for the script. The token is minted at the start of the job and stops working an
 hour later; the wait must end, with its cleanup and the check of the merged commits, while it works,
-so the deadline leaves ten minutes. A repository whose checks or merge queue take longer than 50 minutes
+so the deadline leaves ten minutes, which also cover the setup before the wait (the checkouts and the
+script's checks take a minute or two; a setup that takes ten minutes is an outage that fails the run
+before auto-merge is on). A repository whose checks or merge queue take longer than 50 minutes
 gets a red run that has turned auto-merge off, closed the pull request and deleted the branch: nothing
 reached the default branch. Run the release again when the queue or the runners are quieter: a second
 run starts new checks, so a repository whose checks alone take longer than 50 minutes cannot release
