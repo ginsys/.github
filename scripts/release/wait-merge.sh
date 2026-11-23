@@ -49,6 +49,7 @@ read_pr() {
 # merge: print its oid and let the caller judge the commits.
 stop() {
 	local off=1 closed=1 note
+	trap '' INT TERM # a second signal must not cut the cancel short
 	gh pr merge "$pr" --disable-auto >&2 || off=0
 	gh pr close "$pr" --delete-branch >&2 || closed=0
 	read_pr || true
@@ -73,6 +74,10 @@ stop() {
 	fi
 	fail "$1 $note"
 }
+
+# A run that is cancelled or times out gets INT, then TERM a few seconds later: cancel the release in
+# that window, or auto-merge stays on and the pull request merges with nobody to check or tag it.
+trap 'stop "The run was stopped by a signal."' INT TERM
 
 misses=0
 # miss <what>: count one failed or empty read of a poll.
@@ -110,11 +115,14 @@ while [ "$(date +%s)" -lt "$deadline" ]; do
 				miss "Reading $base"
 			fi
 			;;
-		*) fail "Pull request #$pr is in the state '$state'." ;;
+		*) stop "Pull request #$pr is in the state '$state'." ;;
 		esac
 	else
 		miss "Reading pull request #$pr"
 	fi
-	sleep "$poll"
+	# Not a plain sleep: bash runs a trap only after a foreground command ends, and a cancelled run
+	# gets only a few seconds before the kill.
+	sleep "$poll" &
+	wait $! || true
 done
 stop "Pull request #$pr did not merge within $limit seconds."

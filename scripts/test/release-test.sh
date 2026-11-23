@@ -191,6 +191,7 @@ case "$1 $2" in
 		merged_json
 		;;
 	closed) echo '{"state":"CLOSED","mergeCommit":null}' | out ;;
+	weird) echo '{"state":"DRAFT","mergeCommit":null}' | out ;;
 	*) echo '{"state":"OPEN","mergeCommit":null}' | out ;;
 	esac
 	;;
@@ -616,6 +617,50 @@ rel DRY_RUN=0 WAIT_DEADLINE=1 WAIT_POLL=1 --
 eq "auto-merge off, the PR closes, the branch deletion fails: red" 1 "$RC"
 has "auto-merge off, branch deletion fails: says to delete the branch by hand" "delete it by hand" "$OUT"
 lacks "auto-merge off, branch deletion fails: no claim that it is deleted" "is deleted" "$OUT"
+
+# A run that is cancelled or timed out is killed with INT, then TERM: the wait must cancel the release
+# on the way out, or auto-merge stays on and the pull request merges with nobody to check or tag it.
+for sig in TERM INT TERM-ALONE; do
+	newfx "signal-$sig"
+	echo never >"$GHS/mode"
+	echo release/v0.1.0-alpha.0 >"$GHS/pr-head"
+	git -C "$REMOTE" update-ref refs/heads/release/v0.1.0-alpha.0 main
+	# A background job starts with SIGINT ignored and bash cannot trap an ignored signal; a step of a
+	# real run does not, so perl puts the default back before it starts the script.
+	# setsid makes it a process group of its own, which the signal below reaches with its sleep, as a
+	# runner's does; a signal to the shell alone is held back while a foreground sleep runs.
+	setsid perl -e "\$SIG{INT} = 'DEFAULT'; exec @ARGV" -- env -C "$W" PATH="$T/bin:$PATH" GHSTATE="$GHS" GHREMOTE="$REMOTE" HOME="$D/home" GITHUB_REPOSITORY=o/r GH_TOKEN=app \
+		WAIT_POLL=30 WAIT_DEADLINE=300 bash "$ROOT/scripts/release/wait-merge.sh" 7 "$(git -C "$REMOTE" rev-parse main)" release/v0.1.0-alpha.0 \
+		>"$D/wait.out" 2>&1 &
+	wpid=$!
+	for _ in $(seq 1 100); do
+		case "$(calls)" in *"pr view"*) break ;; esac
+		sleep 0.1
+	done
+	if [ "$sig" = TERM-ALONE ]; then # the shell alone, with its sleep still running
+		kill -s TERM "$wpid"
+	else
+		kill -s "$sig" -- "-$wpid"
+	fi
+	for _ in $(seq 1 50); do # it must end within 5 seconds, not at the end of a 30 second sleep
+		kill -0 "$wpid" 2>/dev/null || break
+		sleep 0.1
+	done
+	kill -s KILL -- "-$wpid" 2>/dev/null
+	wait "$wpid"
+	WRC=$?
+	eq "a $sig while waiting: red" 1 "$WRC"
+	has "a $sig while waiting: auto-merge is turned off" "pr merge 7 --disable-auto" "$(calls)"
+	has "a $sig while waiting: the pull request is closed and its branch deleted" "pr close 7 --delete-branch" "$(calls)"
+	has "a $sig while waiting: says the run was stopped" "was stopped" "$(cat "$D/wait.out")"
+done
+
+newfx weird
+echo weird >"$GHS/mode"
+rel DRY_RUN=0 --
+eq "a state the script does not know: red" 1 "$RC"
+has "a state the script does not know: says the state" "is in the state 'DRAFT'" "$OUT"
+has "a state the script does not know: auto-merge is cancelled" "pr merge 7 --disable-auto" "$(calls)"
 
 newfx latemerge
 echo latemerge >"$GHS/mode"
