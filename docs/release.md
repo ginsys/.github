@@ -190,6 +190,7 @@ jobs:
   release:
     permissions:
       contents: write
+      pull-requests: read
     uses: ginsys/.github/.github/workflows/release.yml@<40-character commit> # <date>
     with:
       action: ${{ inputs.action }}
@@ -204,7 +205,7 @@ caller's repository.
 | Inputs | `action` (one of the seven actions, required), `dry_run` (default `true`) |
 | Secrets, both optional, used by a real run only, read from the environment `release` | `RELEASE_APP_ID`, `RELEASE_APP_PRIVATE_KEY`: the App `ginsys-release-bot` |
 | Outputs | `tag` (the tag the run makes; in a dry run, the tag a real run would make; empty for an action that only moves `VERSION`), `version` (the tag without `v`), `sha` (the commit the tag names; in a dry run, the dispatched commit) |
-| Grants | `contents: write` on the calling job (a called workflow can only narrow what it is given) |
+| Grants | `contents: write` and `pull-requests: read` on the calling job (a called workflow can only narrow what it is given, so the run does not start without both). `guard` lists open pull requests with the workflow token |
 
 **Pin it by commit SHA, never `@main`.** The real run holds the App key and can push a branch and make a
 tag. With `@main`, a change merged here would run in every repository's next release with no pull request
@@ -222,7 +223,8 @@ This repository has no tags yet, so the first pins are moved by hand.
    and runs `release.sh` with `DRY_RUN=0`: the pull request and the wait use the App token, and the tag is
    made with the workflow token, so that it starts no workflow. The changelog date is the one `guard` read,
    so a run that crosses midnight cannot change the heading. Only one `release` job runs per repository
-   (group `release-<repository>`); it never cancels a run in progress.
+   (group `release-<repository>`); it never cancels a run in progress. A third run queued behind a
+running one replaces the second, which is still waiting and has done nothing yet.
 
 **What the owner sets up, once per repository.**
 
@@ -241,9 +243,7 @@ and a rerun cuts a new release. Nothing enforces a quiet window.
 the environment's secrets reach a called workflow, whether a pull request opened by the App starts the
 checks, whether the App may turn on auto-merge with the three permissions above (a refusal is a 403
 whose `X-Accepted-GitHub-Permissions` header names what the call wanted), what a rebase merge makes of
-the two commits, and a real merge queue. A private repository's caller probably also needs
-`pull-requests: read` on the calling job, because `guard` lists open pull requests with the workflow
-token; the dry run of this public repository cannot show that. The action `create-github-app-token` takes
+the two commits, and a real merge queue. The action `create-github-app-token` takes
 the App's numeric id as `app-id`, which it marks deprecated in favour of `client-id`; the secret keeps
 its name until the owner decides.
 

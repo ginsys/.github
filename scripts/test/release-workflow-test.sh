@@ -47,7 +47,7 @@ problems() {
 		|| echo "the environment is not on the release job alone"
 	[ "$(yq '.jobs.guard | tostring' "$f" | grep -c 'secrets\.')" = 0 ] || echo "the guard job reads a secret"
 	[ "$(yq '.jobs.guard.environment // ""' "$f")" = "" ] || echo "the guard job has an environment"
-	[ "$(yq '.jobs.guard.permissions | to_json(0)' "$f")" = '{"contents":"read"}' ] || echo "the guard job holds more than contents: read"
+	[ "$(yq '.jobs.guard.permissions | to_json(0)' "$f")" = '{"contents":"read","pull-requests":"read"}' ] || echo "the guard job does not hold exactly contents: read and pull-requests: read"
 	[ "$(yq '.jobs.release.permissions | to_json(0)' "$f")" = '{"contents":"write"}' ] || echo "the release job holds more than contents: write"
 	[ "$(yq '.jobs.release.concurrency.group' "$f")" = 'release-${{ github.repository }}' ] || echo "the release job's group is not release-<repository>"
 	[ "$(yq '.jobs.release.concurrency."cancel-in-progress"' "$f")" = false ] || echo "the release group cancels"
@@ -82,7 +82,8 @@ broken wrong-group 's/group: release-\$\{\{ github.repository \}\}/group: \${{ g
 broken always-runs 's/if: \$\{\{ !inputs.dry_run \}\}/if: true/' "does not run only for a real run"
 broken tag-token 's/TAG_TOKEN: \$\{\{ github.token \}\}/TAG_TOKEN: \${{ steps.app.outputs.token }}/' "not made with the workflow token"
 broken dry-default 's/default: true/default: false/' "does not default to true"
-broken guard-write 's/(    permissions:\n      contents: )read/${1}write/' "guard job holds more"
+broken guard-write 's/(    permissions:\n      contents: )read/${1}write/' "guard job does not hold exactly"
+broken guard-no-prs 's/\n      pull-requests: read//' "guard job does not hold exactly"
 
 out=$(problems "$RELEASE")
 if [ -z "$out" ]; then ok "release.yml keeps every rule"; else bad "release.yml keeps every rule" "$out"; fi
@@ -92,6 +93,9 @@ if [ -z "$out" ]; then ok "release.yml keeps every rule"; else bad "release.yml 
 check() { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "expected: $2" "actual:   $3"; fi; }
 check "release-dry-run.yml passes dry_run: true" true "$(yq '.jobs."dry-run".with.dry_run' "$DRYRUN")"
 check "the dry run is of start-next-minor, which makes no tag" start-next-minor "$(yq '.jobs."dry-run".with.action' "$DRYRUN")"
+# A called job cannot hold more than its caller grants, so the caller must grant what guard asks for.
+check "the dry-run caller grants contents: write and pull-requests: read" '{"contents":"write","pull-requests":"read"}' \
+	"$(yq '.jobs."dry-run".permissions | to_json(0)' "$DRYRUN")"
 check "release-dry-run.yml reads no secret" 0 "$(yq '. | tostring' "$DRYRUN" | grep -c 'secrets\.' || true)"
 # The snapshots must fail on a failed read (bash with pipefail) and list every open pull request.
 check "release-dry-run.yml runs its steps with bash -e and pipefail" bash "$(yq '.defaults.run.shell' "$DRYRUN")"
