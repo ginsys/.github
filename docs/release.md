@@ -210,9 +210,10 @@ caller's repository.
 
 **A caller that can make a real release is triggered by `workflow_dispatch` only.** This holds for a
 caller of `release.yml`, `publish-github.yml` or `build-go.yml`, and for any job of its own that
-publishes, builds an image or pushes. The `inputs` context is empty on every other trigger, so on a
-pull request `dry_run: ${{ inputs.dry_run }}` passes an empty value and `if: ${{ !inputs.dry_run }}`
-is true: the job runs for real. To dry-run on pull requests, use a separate caller that passes the
+publishes, builds an image or pushes. In a workflow that a pull request, or any trigger other than
+`workflow_dispatch`, starts directly, the `inputs` context is empty. So there `dry_run: ${{ inputs.dry_run }}`
+passes an empty value and `if: ${{ !inputs.dry_run }}` is true: the job runs for real. (A called
+workflow gets its `inputs` from its caller, which is why `release-dry-run.yml` can pass a value in.) To dry-run on pull requests, use a separate caller that passes the
 literal `dry_run: true`, as `release-dry-run.yml` does, and keep its own jobs off pull requests.
 
 **Pin it by commit SHA, never `@main`.** The real run holds the App key and can push a branch and make a
