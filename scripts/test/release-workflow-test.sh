@@ -39,10 +39,16 @@ esac
 
 # problems <release.yml copy>: one line per rule the file breaks; nothing when it keeps them all.
 problems() {
-	local f=$1 v
+	local f=$1 v wd
+	# The deadline the Release step sets, or the script's own default when it sets none.
+	wd=$(yq '.jobs.release.steps[] | select(.id == "run") | .env.WAIT_DEADLINE // ""' "$f")
+	[ -n "$wd" ] || wd=$deadline
+	# The App token lives one hour from the mint: the wait must end ten minutes before that, so that its
+	# cleanup and the check of the merged commits still have a token.
+	[ $((wd + 600)) -le 3600 ] || echo "the wait deadline $wd leaves less than ten minutes of the App token's one-hour life"
 	v=$(yq '.jobs.release."timeout-minutes" // 0' "$f")
 	# The steps after the wait take a few minutes: ten are required beyond the deadline.
-	[ $((v * 60)) -ge $((deadline + 600)) ] || echo "release job timeout-minutes $v is not above the wait deadline plus 10 minutes"
+	[ $((v * 60)) -ge $((wd + 600)) ] || echo "release job timeout-minutes $v is not above the wait deadline plus 10 minutes"
 	[ "$(yq '[.jobs | to_entries[] | select(.value.environment != null) | .key] | join(",")' "$f")" = release ] \
 		|| echo "the environment is not on the release job alone"
 	[ "$(yq '.jobs.guard | tostring' "$f" | grep -c 'secrets\.')" = 0 ] || echo "the guard job reads a secret"
@@ -74,7 +80,9 @@ broken() {
 	esac
 }
 
-broken short-limit 's/timeout-minutes: 120/timeout-minutes: 90/' "timeout-minutes 90"
+broken short-limit 's/timeout-minutes: 120/timeout-minutes: 55/' "timeout-minutes 55"
+broken long-wait 's/WAIT_DEADLINE: "3000"/WAIT_DEADLINE: "3500"/' "leaves less than ten minutes"
+broken no-wait-set 's/\n          # The App token lives.*\n.*\n          WAIT_DEADLINE: "3000"//' "wait deadline 5400"
 broken guard-secret 's/\$\{\{ github\.token \}\}/\${{ secrets.RELEASE_APP_ID }}/' "guard job reads a secret"
 broken guard-env 's/(  guard:\n)/$1    environment: release\n/' "environment is not on the release job alone"
 broken cancel 's/cancel-in-progress: false/cancel-in-progress: true/' "release group cancels"
