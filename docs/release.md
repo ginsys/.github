@@ -130,12 +130,13 @@ changelog section there: these are the release notes, in a dry run too.
 `DRY_RUN` is 1 unless set, so a bare run never releases. `wait-merge.sh` reads the pull request and the
 tip of the default branch on every poll. If the tip is no longer the commit the release was cut from,
 it turns auto-merge off, closes the pull request and deletes the branch: nothing reached the default
-branch, and a rerun cuts a new release. The 90-minute deadline (elapsed time) and six failed reads in a
+branch, and a rerun cuts a new release. The deadline (elapsed time; 90 minutes unless `WAIT_DEADLINE`
+sets it, and the reusable workflow sets 50) and six failed reads in a
 row (of the pull request, or of the tip, counted together) end the run the same way, so that a merge
 cannot happen after the script has stopped watching; a closed pull request ends it at once. If the
 cancelling itself fails, the message says so and that the pull request may still merge. The job that
-runs the script needs a `timeout-minutes` larger than the 90-minute deadline plus the steps after it,
-so that the script's own deadline is the one that fires (the reusable release workflow sets 120).
+runs the script needs a `timeout-minutes` larger than the deadline plus the steps after it, so that
+the script's own deadline is the one that fires (the reusable release workflow sets 120).
 
 A `VERSION` number of more than nine digits is refused. The tag call is tried three times, then the
 exact command is printed.
@@ -224,7 +225,18 @@ This repository has no tags yet, so the first pins are moved by hand.
    made with the workflow token, so that it starts no workflow. The changelog date is the one `guard` read,
    so a run that crosses midnight cannot change the heading. Only one `release` job runs per repository
    (group `release-<repository>`); it never cancels a run in progress. A third run queued behind a
-running one replaces the second, which is still waiting and has done nothing yet.
+   running one replaces the second, which is still waiting and has done nothing yet.
+
+**The wait is 50 minutes, because the App token lives one hour.** The release job sets
+`WAIT_DEADLINE=3000` for the script. The token is minted at the start of the job and stops working an
+hour later; the wait must end, with its cleanup and the check of the merged commits, while it works,
+so the deadline leaves ten minutes. A repository whose checks or merge queue take longer than 50 minutes
+gets a red run that has turned auto-merge off, closed the pull request and deleted the branch: nothing
+reached the default branch. Run the release again when the queue or the runners are quieter: a second
+run starts new checks, so a repository whose checks alone take longer than 50 minutes cannot release
+with this workflow until they are faster. If the cleanup itself failed, the message says so: follow
+"A run that was interrupted" above. A test fails a workflow whose deadline leaves less than ten
+minutes of the token's hour.
 
 **What the owner sets up, once per repository.**
 
