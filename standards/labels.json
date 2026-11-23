@@ -195,6 +195,12 @@
       "repos": [".github", "bronzeward", "parley"]
     },
     {
+      "name": "no-changelog",
+      "color": "#EDEDED",
+      "description": "Change needs no changelog entry: CI, tests, docs-only; read by the shared changelog-fragment check",
+      "repos": ["bronzeward"]
+    },
+    {
       "name": "critical-infra",
       "color": "#EDEDED",
       "description": "",
