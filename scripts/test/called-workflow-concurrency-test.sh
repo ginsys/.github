@@ -6,8 +6,9 @@
 # equals the caller's own group (when the caller keeps the usual `${{ github.workflow }}-...`), and
 # GitHub cancels the run as a deadlock. A fixed prefix is fine, and so is no group: the caller owns it.
 #
-# The check reads every workflow here that has a `workflow_call` trigger, at the top level and in each
-# job. It runs on fixtures first, so a check that never matches cannot pass for a clean tree.
+# The check reads every *.yml and *.yaml workflow here that has a `workflow_call` trigger, written as a
+# map, a list or a plain string, at the top level and in each job. It runs on fixtures first, so a
+# check that never matches cannot pass for a clean tree.
 #
 # Usage: called-workflow-concurrency-test.sh [REPO_ROOT]
 
@@ -31,13 +32,17 @@ bad() {
 	printf '     %s\n' "$@"
 }
 
+# is_called <file>: true when the workflow has a workflow_call trigger. `on` is a map, a list or a
+# string, and a bare `workflow_call:` key is a null value, so has() is used and not "!= null".
+is_called() {
+	[ "$(yq '.on | ((tag == "!!map" and has("workflow_call")) or (tag == "!!seq" and contains(["workflow_call"])) or (tag == "!!str" and . == "workflow_call"))' "$1")" = true ]
+}
+
 # groups <file>: every concurrency group string of a reusable workflow, one per line; nothing when the
 # file is not reusable.
 groups() {
-	local f=$1
-	# has(), not "!= null": a bare `workflow_call:` key is a null value.
-	[ "$(yq '.on | has("workflow_call")' "$f")" = true ] || return 0
-	yq '[.concurrency, .jobs[].concurrency] | .[] | select(. != null) | (.group // .)' "$f"
+	is_called "$1" || return 0
+	yq '[.concurrency, .jobs[].concurrency] | .[] | select(. != null) | (.group // .)' "$1"
 }
 
 # offending <file>: the groups that contain github.workflow.
@@ -45,69 +50,110 @@ offending() {
 	groups "$1" | grep -F 'github.workflow' || true
 }
 
-# expect_bad / expect_ok <name> <yaml>: the check on a fixture.
+# scan_tree <root>: "<file>: <group>" for every offending workflow under <root>/.github/workflows,
+# *.yml and *.yaml alike, and a final line "scanned N" with the number of files read.
+scan_tree() {
+	local f n=0 hit
+	for f in "$1"/.github/workflows/*.yml "$1"/.github/workflows/*.yaml; do
+		[ -e "$f" ] || continue
+		n=$((n + 1))
+		hit=$(offending "$f")
+		[ -z "$hit" ] || printf '%s: %s\n' "$(basename "$f")" "$hit"
+	done
+	printf 'scanned %d\n' "$n"
+}
+
+# fixture <name> <yaml>: write $T/<name> and print its offending groups.
 fixture() {
-	local name=$1 yaml=$2 file
-	file="$T/$name.yml"
-	printf '%s\n' "$yaml" >"$file"
+	local file="$T/$1"
+	printf '%s\n' "$2" >"$file"
 	offending "$file"
 }
 
-out=$(fixture called-top 'on:
-  workflow_call:
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-jobs:
+caught() { if [ -n "$2" ]; then ok "$1"; else bad "$1" "nothing found"; fi; }
+passes() { if [ -z "$2" ]; then ok "$1"; else bad "$1" "found: $2"; fi; }
+
+BODY='jobs:
   j:
     runs-on: ubuntu-latest
-    steps: [{run: "true"}]')
-if [ -n "$out" ]; then ok "control: a called workflow with a top-level github.workflow group is caught"; else bad "control: a called workflow with a top-level github.workflow group is caught" "nothing found"; fi
+    steps: [{run: "true"}]'
+GROUP='concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}'
 
-out=$(fixture called-job 'on:
+caught "control: map trigger, top-level github.workflow group, is caught" \
+	"$(fixture map.yml "on:
+  workflow_call:
+$GROUP
+$BODY")"
+caught "control: map trigger with inputs is caught" \
+	"$(fixture map-inputs.yml "on:
+  workflow_call:
+    inputs:
+      x:
+        type: string
+$GROUP
+$BODY")"
+caught "control: scalar trigger (on: workflow_call) is caught" \
+	"$(fixture scalar.yml "on: workflow_call
+$GROUP
+$BODY")"
+caught "control: list trigger (on: [workflow_call]) is caught" \
+	"$(fixture list.yml "on: [pull_request, workflow_call]
+$GROUP
+$BODY")"
+caught "control: block-list trigger is caught" \
+	"$(fixture block-list.yml "on:
+  - pull_request
+  - workflow_call
+$GROUP
+$BODY")"
+caught "control: a job-level github.workflow group is caught" \
+	"$(fixture job.yml 'on:
   workflow_call:
 jobs:
   j:
     runs-on: ubuntu-latest
     concurrency: ${{ github.workflow }}
-    steps: [{run: "true"}]')
-if [ -n "$out" ]; then ok "control: a job-level github.workflow group is caught"; else bad "control: a job-level github.workflow group is caught" "nothing found"; fi
-
-out=$(fixture called-prefix 'on:
+    steps: [{run: "true"}]')"
+passes "control: a fixed prefix passes" \
+	"$(fixture prefix.yml "on:
   workflow_call:
 concurrency:
-  group: fixed-prefix-${{ github.event.pull_request.number }}
-jobs:
-  j:
-    runs-on: ubuntu-latest
-    steps: [{run: "true"}]')
-eq_empty() { if [ -z "$2" ]; then ok "$1"; else bad "$1" "found: $2"; fi; }
-eq_empty "control: a fixed prefix passes" "$out"
-
-out=$(fixture called-none 'on:
+  group: fixed-prefix-\${{ github.event.pull_request.number }}
+$BODY")"
+passes "control: a called workflow with no concurrency passes" \
+	"$(fixture none.yml "on:
   workflow_call:
-jobs:
-  j:
-    runs-on: ubuntu-latest
-    steps: [{run: "true"}]')
-eq_empty "control: a called workflow with no concurrency passes" "$out"
-
-out=$(fixture not-called 'on:
+$BODY")"
+passes "control: a workflow that is not called may use github.workflow (map)" \
+	"$(fixture not-called.yml "on:
   pull_request:
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-jobs:
-  j:
-    runs-on: ubuntu-latest
-    steps: [{run: "true"}]')
-eq_empty "control: a workflow that is not called may use github.workflow" "$out"
+$GROUP
+$BODY")"
+passes "control: a workflow that is not called may use github.workflow (list)" \
+	"$(fixture not-called-list.yml "on: [push, pull_request]
+$GROUP
+$BODY")"
 
-n=0
-for f in "$ROOT"/.github/workflows/*.yml; do
-	[ -e "$f" ] || continue
-	n=$((n + 1))
-	eq_empty "$(basename "$f"): no group built from github.workflow" "$(offending "$f")"
-done
-if [ "$n" -gt 0 ]; then ok "the check read $n workflow file(s)"; else bad "the check read workflow files" "none found under $ROOT/.github/workflows"; fi
+# The tree scan: a .yaml file is read as well, and the count says how many files it read.
+mkdir -p "$T/tree/.github/workflows"
+printf '%s\n' "on: workflow_call
+$GROUP
+$BODY" >"$T/tree/.github/workflows/reusable.yaml"
+printf '%s\n' "on:
+  workflow_call:
+$BODY" >"$T/tree/.github/workflows/clean.yml"
+out=$(scan_tree "$T/tree")
+case "$out" in
+*"reusable.yaml:"*"scanned 2"*) ok "control: a .yaml reusable workflow is scanned and caught, both files counted" ;;
+*) bad "control: a .yaml reusable workflow is scanned and caught, both files counted" "$out" ;;
+esac
+
+out=$(scan_tree "$ROOT")
+n=${out##*scanned }
+hits=${out%scanned *}
+passes "the repository's workflows: none builds a group from github.workflow" "$hits"
+if [ "${n:-0}" -gt 0 ]; then ok "the check read $n workflow file(s) under $ROOT"; else bad "the check read workflow files" "none found under $ROOT/.github/workflows"; fi
 
 printf '\n%d passed, %d failed\n' "$PASS" "$FAIL"
 [ "$FAIL" -eq 0 ]
