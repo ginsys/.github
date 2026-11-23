@@ -46,10 +46,12 @@ onboarding hits the same three walls until it too goes public.
 | `.github/workflows/changelog-fragment.yml` | Reusable PR check that a change carries a changelog fragment (`docs/release.md`) |
 | `.github/workflows/release.yml` | Reusable release: checks and previews with no secret, and for a real run cuts the release pull request and makes the tag. Pinned by commit SHA (`docs/release.md`) |
 | `.github/workflows/release-dry-run.yml` | A dry run of it on this repo's own `VERSION` and `CHANGELOG.md`, with a before-and-after comparison; releases nothing |
+| `.github/workflows/publish-github.yml` | Reusable publish: the run's `release-*` files and the release notes become a GitHub release with `SHA256SUMS`, optionally signed. Pinned by commit SHA (`docs/release.md`) |
+| `.github/workflows/build-go.yml` | Reusable Go build: GoReleaser in snapshot mode, the archives uploaded as `release-go` (`docs/release.md`) |
 | `VERSION`, `CHANGELOG.md` | The start of this repository's own versioning; nothing is released from here yet |
 | `scripts/tracker-audit.sh` | The audit itself, fixture-tested by `scripts/test/tracker-audit-test.sh` |
-| `scripts/release/` | Changelog assembler and fragment check, the release script and the merge wait, fixture-tested by `scripts/test/changelog-test.sh` and `scripts/test/release-test.sh`; the release workflow's structure by `scripts/test/release-workflow-test.sh` |
-| `docs/release.md` | The release standard: fragments, the PR check, the release script and the release workflow (more as the workflows land) |
+| `scripts/release/` | Changelog assembler and fragment check, the release script and the merge wait, the publish checks, `write-sums.sh` and `check-dist.sh`, fixture-tested by `scripts/test/changelog-test.sh`, `scripts/test/release-test.sh` and `scripts/test/publish-test.sh`; the workflows' structure by `scripts/test/release-workflow-test.sh` and `scripts/test/publish-test.sh` |
+| `docs/release.md` | The release standard: fragments, the PR check, the release script, and the release, publish and Go build workflows |
 | `.github/workflows/ci.yml` | This repo's own checks: lint, tests, action pins |
 | `profile/README.md` | Organization profile |
 

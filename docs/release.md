@@ -266,3 +266,75 @@ tags, the `release/*` branches and the open release pull requests, and a job aft
 any difference fails. It runs on pull requests that touch the release files, and is not one of the
 required checks, because a pull request from a fork has a read-only token and the called workflow asks
 for `contents: write`. Releases of this repository itself are not made.
+
+## The publish workflow
+
+`publish-github.yml` turns the files a run built and the release notes into a GitHub release with a
+`SHA256SUMS` file. It reads no secret. A caller chains it after `release.yml` and its own build jobs, in
+the same run:
+
+```yaml
+  publish:
+    needs: [release, build]
+    permissions:
+      contents: write
+    uses: ginsys/.github/.github/workflows/publish-github.yml@<40-character commit> # <date>
+    with:
+      tag: ${{ needs.release.outputs.tag }}
+      sha: ${{ needs.release.outputs.sha }}
+      dry_run: ${{ inputs.dry_run }}
+```
+
+| | |
+|---|---|
+| Inputs | `tag` and `sha` (required; `release.yml`'s outputs), `dry_run` (default `true`), `sign` (default `false`), `notes-footer` (text appended to the notes) |
+| Reads from the run | the artifact `changelog-notes` that `release.yml` uploads, and every artifact named `release-*`: any job of the caller may upload `release-<anything>` |
+| Grants | `contents: write` on the calling job; with `sign: true` also `id-token: write` and `attestations: write` |
+
+The workflow names no permissions of its own, so its job holds what the calling job grants. A called
+workflow that asked for more than its caller grants does not start, and one that asked for the signing
+scopes would force every caller to grant them. It checks out only this repository's scripts, never the
+caller's repository: the files, the notes and the tag all come from the run and the API.
+
+**In order.** The job has a limit of 30 minutes.
+
+1. It refuses a tag that already has a release, first, so that a re-run of a half-published release
+   stops here. Three outcomes: no release is the one that goes on; a release refuses; a read that
+   fails for any other reason also refuses, because it cannot tell.
+2. A real run refuses unless the tag in the repository names `sha`. An annotated tag is peeled once.
+3. It writes the notes from `changelog-notes` and appends the footer. Missing or empty notes fail.
+4. It downloads every `release-*` artifact into `dist/` and fails when there is none: a release with no
+   files is a mistake. `write-sums.sh` then writes `SHA256SUMS` over the files in `dist/`, whether the
+   caller built sums of its own or not.
+5. A dry run prints the notes and the sums to the job summary, uploads them with the files as the
+   artifact `publish-preview` for 14 days, and stops. Nothing is signed or published.
+6. With `sign`, a real run signs `SHA256SUMS` with cosign (keyless, `SHA256SUMS.sigstore.json`) and
+   attests the files by their checksums.
+7. A real run runs `gh release create` with `--verify-tag`. A tag with a pre-release part (`-alpha.N`,
+   `-beta.N`, `-rc.N`) gets `--prerelease --latest=false` and is never Latest. A stable tag takes
+   GitHub's default; no repository has made one yet.
+
+## The Go build workflow
+
+`build-go.yml` builds a Go project with GoReleaser in snapshot mode, which builds and archives and
+publishes nothing, and uploads the archives as the run artifact `release-go`, which the publish workflow
+picks up. A dry run builds for real, so it proves the build.
+
+| | |
+|---|---|
+| Inputs | `tag` and `sha` (required), `go-version-file` (default `go.mod`) |
+| Grants | `contents: read` |
+| Runs | `goreleaser release --snapshot --clean` with `RELEASE_VERSION=<tag>` in the environment, GoReleaser pinned here to an exact version, then `check-dist.sh` |
+
+`check-dist.sh` fails unless `dist/` holds at least one archive (`*.tar.gz` or `*.zip`) and every
+archive's name contains the version, which is the tag without its `v`. Only the archives are uploaded.
+
+**What the caller's `.goreleaser.yaml` must hold.** The file stays in the repository, because the
+binaries, platforms and archive contents are the repository's: `version: 2`; `release.disable: true`
+and `changelog.disable: true`; the version stamped with
+`-ldflags "-X <package>.<var>={{ .Env.RELEASE_VERSION }}"`; archives as `tar.gz` into `dist/`; builds
+with `-trimpath`; `snapshot.version_template` set so that archive names carry the tag.
+
+Left out because no caller needs it: SBOMs, `go-licenses`, extra GoReleaser arguments. The checkout is
+shallow and has no tag, as GoReleaser's snapshot mode allows; the first real caller's dry run is the
+proof of that and of the build itself, because this repository has no Go code to build.
