@@ -6,11 +6,12 @@
 #   SKIP  the head branch is a bot's (dependabot/, renovate/) or the release PR's
 #         own (release/<tag>, made by release.sh), or the PR carries the label
 #         no-changelog (CI, tests and docs-only changes); a skip lifts the need for
-#         a fragment, not the validation of one the PR adds or edits
+#         a fragment, not the validation of one the PR adds or edits, or of where it sits
 #   PASS  the PR adds a valid changelog.d/<issue>-<slug>.md, leaves every fragment
 #         it edits valid, and adds no line to CHANGELOG.md
 #   FAIL  anything else, with what to do
-#   ERROR the base ref is missing (a shallow checkout): never read as "no fragment"
+#   ERROR the base ref is missing, or has no merge base with HEAD (a shallow checkout):
+#         never read as "no fragment"
 #
 # Inputs (environment): BASE_REF (default main), HEAD_REF_NAME (the PR's head
 # branch), PR_NO_CHANGELOG (the word true when the PR has the label no-changelog;
@@ -19,6 +20,7 @@
 #
 # It works on the git repository of the current directory, and finds the assembler beside itself.
 set -euo pipefail
+export LC_ALL=C
 
 here=$(cd "$(dirname "$0")" && pwd)
 cd "$(git rev-parse --show-toplevel)"
@@ -38,10 +40,21 @@ dependabot/* | renovate/*) skip_reason="bot branch $head_ref" ;;
 release/*) skip_reason="release branch $head_ref" ;;
 esac
 
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/check-changelog-fragment.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+
+# The diff goes to a file first, NUL-delimited: a failed diff (no merge base with the base ref) must
+# be an ERROR and never an empty list, which a process substitution would hide, and a name with
+# non-ASCII characters must reach the case below as it is, never as git's quoted form.
+if ! git diff -z --name-status --no-renames "$base...HEAD" >"$tmp/changes"; then
+	echo "ERROR git diff $base...HEAD failed: no merge base? fetch the full history (actions/checkout needs fetch-depth: 0)"
+	exit 2
+fi
+
 added=()
 modified=()
 subdir=()
-while IFS=$'\t' read -r status path; do
+while IFS= read -r -d '' status && IFS= read -r -d '' path; do
 	case "$path" in
 	changelog.d/README.md) continue ;;
 	changelog.d/*/*.md) [ "$status" = A ] && subdir+=("$path") ;;
@@ -50,16 +63,20 @@ while IFS=$'\t' read -r status path; do
 		[ "$status" = M ] && modified+=("$path")
 		;;
 	esac
-done < <(git diff --name-status --no-renames "$base...HEAD")
+done <"$tmp/changes"
 
-# A fragment the PR adds or edits is read by the release, so both are validated,
-# the skip or not. A deleted fragment is not read, so a release PR still passes.
+# A fragment the PR adds or edits is read by the release, so both are validated, and so is where an
+# added one sits, the skip or not. A deleted fragment is not read, so a release PR still passes.
 fail=0
 for p in ${added[@]+"${added[@]}"} ${modified[@]+"${modified[@]}"}; do
 	if ! msg=$("$here/changelog-assemble.sh" --validate "$p" 2>&1); then
 		echo "FAIL $msg"
 		fail=1
 	fi
+done
+for p in ${subdir[@]+"${subdir[@]}"}; do
+	echo "FAIL $p is in a subdirectory: fragments sit directly in changelog.d/"
+	fail=1
 done
 
 if [ -z "$skip_reason" ] && [ "$no_changelog" = true ]; then
@@ -80,10 +97,6 @@ if [ "$changelog_lines" -gt 0 ]; then
 	echo "FAIL CHANGELOG.md has $changelog_lines added line(s): put the entry in changelog.d/<issue>-<slug>.md instead"
 	fail=1
 fi
-for p in ${subdir[@]+"${subdir[@]}"}; do
-	echo "FAIL $p is in a subdirectory: fragments sit directly in changelog.d/"
-	fail=1
-done
 if [ "${#added[@]}" -eq 0 ]; then
 	echo "FAIL no fragment added: add changelog.d/<issue>-<slug>.md, or label the PR no-changelog when it needs no entry"
 	fail=1

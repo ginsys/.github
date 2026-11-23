@@ -15,7 +15,8 @@ and deletes them.
   or the pull request number if there is no issue. `<slug>` is lowercase letters, digits and dashes.
 - **Line 1:** the section: `Added`, `Changed`, `Deprecated`, `Removed`, `Fixed` or `Security`.
 - **The rest:** exactly one bullet, as in `CHANGELOG.md`. It starts with `- `, its continuation lines
-  are indented two spaces, and it ends with `Fixes owner/repo#N.` or `Refs owner/repo#N.`.
+  are indented two spaces, and it should end with `Fixes owner/repo#N.` or `Refs owner/repo#N.`
+  (the check does not enforce the reference).
 
 ```
 Fixed
@@ -38,8 +39,8 @@ It works on the git repository of the current directory.
   and deletes the fragments. `CHANGELOG_DATE=YYYY-MM-DD` sets the date, so a caller that read the date
   once keeps it.
 
-The preview and the write build the section with the same code, and a test compares them byte for
-byte. The release notes and the changelog cannot say different things.
+The preview and the write build the section with the same code, and a test compares them line for
+line. The release notes and the changelog cannot say different things.
 
 Exit codes: 0 done, 2 a fragment or `CHANGELOG.md` is invalid and nothing was written, 3 there is no
 fragment.
@@ -72,7 +73,8 @@ The check gives one verdict:
 | FAIL | Anything else, with what to do. |
 
 A skip lifts the need for a fragment, not the format: a fragment the pull request adds or edits is
-validated either way. Use the label `no-changelog` for a change that needs no entry (CI, tests, a
+validated either way, and so is where it sits (directly in `changelog.d/`, never in a subdirectory).
+A diff that cannot be read, such as a base with no merge base, is an error and never a skip. Use the label `no-changelog` for a change that needs no entry (CI, tests, a
 change to documentation only). The required check name is the caller's job name; none is fixed here.
 
 To run it by hand, change into the repository to check and run
