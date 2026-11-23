@@ -232,7 +232,9 @@ fi
 
 date=${CHANGELOG_DATE:-$(date +%F)}
 # The shape, then the calendar: 2026-02-31 has the shape and is no date.
-if ! [[ $date =~ $DATE_RE ]] || [ "$(date -d "$date" +%F 2>/dev/null)" != "$date" ]; then
+# Read under UTC: in a zone that skipped local midnight on that day (a daylight-saving jump), date -d
+# refuses a day that exists.
+if ! [[ $date =~ $DATE_RE ]] || [ "$(TZ=UTC date -d "$date" +%F 2>/dev/null)" != "$date" ]; then
 	echo "ERROR CHANGELOG_DATE '$date' must be a real date, YYYY-MM-DD" >&2
 	exit 2
 fi
@@ -240,9 +242,10 @@ fi
 new_changelog "$version" "$date" "$gen" >"$tmp/new"
 
 # Write beside CHANGELOG.md, then rename over it: a failed or interrupted write leaves the original
-# whole. The tracked fragments go first, in one "git rm" that takes the index lock before it removes
-# anything, so a locked index fails the run with CHANGELOG.md and every fragment as they were. The
-# rename follows at once: a retry after a run that failed here would otherwise cut the same entries twice.
+# whole, and no fragment is touched before the rename succeeds. The tracked fragments then go in one
+# "git rm", which takes the index lock before it removes anything. When it fails (a locked index),
+# CHANGELOG.md is put back and every fragment is as it was: a retry would otherwise cut the same
+# entries twice.
 next=$(mktemp "$ROOT/$CHANGELOG.XXXXXX")
 cp -p "$CHANGELOG" "$next"
 cat "$tmp/new" >"$next"
@@ -255,14 +258,17 @@ for n in "${names[@]}"; do
 		loose+=("$FRAG_DIR/$n")
 	fi
 done
-if [ "${#tracked[@]}" -gt 0 ]; then
-	git rm -q -f -- "${tracked[@]}"
-fi
-mv -f "$next" "$CHANGELOG" || {
-	echo "ERROR could not replace $CHANGELOG; restore the fragments with: git checkout HEAD -- $FRAG_DIR" >&2
-	exit 1
-}
+cp -p "$CHANGELOG" "$tmp/original"
+mv -f "$next" "$CHANGELOG"
 next=
+if [ "${#tracked[@]}" -gt 0 ] && ! git rm -q -f -- "${tracked[@]}"; then
+	next=$(mktemp "$ROOT/$CHANGELOG.XXXXXX")
+	cp -p "$tmp/original" "$next"
+	mv -f "$next" "$CHANGELOG"
+	next=
+	echo "ERROR git rm failed (a locked index?): $CHANGELOG restored, no fragment removed" >&2
+	exit 1
+fi
 if [ "${#loose[@]}" -gt 0 ]; then
 	rm -f -- "${loose[@]}"
 fi

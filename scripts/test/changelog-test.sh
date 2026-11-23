@@ -349,6 +349,16 @@ run env CHANGELOG_DATE=2026-02-31 bash "$ASSEMBLE" --write 1.2.3
 eq "write: a date with the shape and no calendar day is refused (exit 2)" 2 "$RC"
 eq "write: an impossible date changes nothing" "" "$(cd "$FX" && fxgit status --porcelain -- CHANGELOG.md)"
 eq "write: an impossible date leaves the fragment" 1 "$(nfrags)"
+# The calendar check reads the date under UTC. In a zone that skipped local midnight on that day,
+# date -d refuses a day that exists. The control below tells whether this host has such a zone.
+newfx date-zone
+frag 3-a.md Added '- Add a.'
+if TZ=America/Sao_Paulo date -d 2018-11-04 +%F >/dev/null 2>&1; then
+	printf 'SKIP daylight-saving zone case: this host reads America/Sao_Paulo 2018-11-04 fine\n'
+else
+	run env TZ=America/Sao_Paulo CHANGELOG_DATE=2018-11-04 bash "$ASSEMBLE" --write 1.2.3
+	eq "write: a real date is accepted in a zone that skipped its local midnight (exit 0)" 0 "$RC"
+fi
 newfx date-leap
 frag 3-a.md Added '- Add a.'
 run env CHANGELOG_DATE=2024-02-29 bash "$ASSEMBLE" --write 1.2.3
@@ -359,13 +369,16 @@ eq "write: a leap day is accepted (exit 0)" 0 "$RC"
 newfx index-locked
 frag 3-a.md Added '- Add a.'
 (cd "$FX" && fxgit add -A && fxgit commit -q -m frags)
+frag 3-a.md Added '- Add a, edited and not committed.'
 BEFORE=$(cat "$FX/CHANGELOG.md")
+FRAG_BEFORE=$(cat "$FX/changelog.d/3-a.md")
 : >"$FX/.git/index.lock"
 run env CHANGELOG_DATE=2026-01-02 bash "$ASSEMBLE" --write 1.2.3
 rm -f "$FX/.git/index.lock"
 if [ "$RC" -ne 0 ]; then ok "locked index: the write is refused"; else bad "locked index: the write is refused" "exit was 0"; fi
-eq "locked index: CHANGELOG.md unchanged" "$BEFORE" "$(cat "$FX/CHANGELOG.md")"
-eq "locked index: the fragment is still there" 1 "$(nfrags)"
+eq "locked index: CHANGELOG.md restored byte for byte" "$BEFORE" "$(cat "$FX/CHANGELOG.md")"
+eq "locked index: the fragment is still there, with its uncommitted edit" "$FRAG_BEFORE" "$(cat "$FX/changelog.d/3-a.md")"
+eq "locked index: no temporary file left beside CHANGELOG.md" "" "$(find "$FX" -maxdepth 1 -name 'CHANGELOG.md.*')"
 
 # The release is written beside CHANGELOG.md and renamed over it, so a failed
 # write leaves the original whole: with the directory unwritable no temporary
@@ -511,6 +524,14 @@ check HEAD_REF_NAME=ci/17-a
 eq "check: a non-ASCII fragment name beside a valid one fails (exit 1)" 1 "$RC"
 
 # A base ref with no merge base makes the diff fail: an ERROR, never an empty list that skips or passes.
+newfx check-no-tmp
+prbranch fix/19-a
+frag 19-a.md Fixed '- Fix.'
+commit_all c
+check HEAD_REF_NAME=fix/19-a TMPDIR="$T/does-not-exist"
+eq "check: an unusable TMPDIR is an error (exit 2), never a bare exit 1" 2 "$RC"
+has "check: ERROR line names the temporary directory" "ERROR no temporary directory" "$OUT"
+
 newfx check-no-merge-base
 (cd "$FX" && fxgit checkout -q --orphan unrelated && fxgit rm -rf -q . && printf 'x\n' >x.txt && fxgit add x.txt && fxgit commit -q -m unrelated && fxgit update-ref refs/remotes/origin/main unrelated && fxgit checkout -q main) >/dev/null 2>&1
 prbranch ci/18-a
