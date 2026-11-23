@@ -82,7 +82,7 @@ broken() {
 
 broken short-limit 's/timeout-minutes: 120/timeout-minutes: 55/' "timeout-minutes 55"
 broken long-wait 's/WAIT_DEADLINE: "3000"/WAIT_DEADLINE: "3500"/' "leaves less than ten minutes"
-broken no-wait-set 's/\n          # The App token lives.*\n.*\n          WAIT_DEADLINE: "3000"//' "wait deadline 5400"
+broken no-wait-set 's/\n          WAIT_DEADLINE: "3000"//' "wait deadline 5400"
 broken guard-secret 's/\$\{\{ github\.token \}\}/\${{ secrets.RELEASE_APP_ID }}/' "guard job reads a secret"
 broken guard-env 's/(  guard:\n)/$1    environment: release\n/' "environment is not on the release job alone"
 broken cancel 's/cancel-in-progress: false/cancel-in-progress: true/' "release group cancels"
