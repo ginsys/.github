@@ -51,19 +51,25 @@ stop() {
 	local off=1 closed=1 note
 	gh pr merge "$pr" --disable-auto >&2 || off=0
 	gh pr close "$pr" --delete-branch >&2 || closed=0
-	if [ "$off$closed" = 11 ]; then
-		note="Auto-merge is off, pull request #$pr is closed and $branch is deleted."
-	elif [ "$off$closed" = 10 ]; then
-		note="Auto-merge is off, but #$pr could not be closed or $branch deleted: close it and delete the branch by hand."
-	elif [ "$off$closed" = 01 ]; then
-		note="WARNING: could not turn auto-merge off for #$pr; it is closed, which stops a merge, but check it by hand."
-	else
-		note="WARNING: could not turn auto-merge off for #$pr or close it; it may still merge. Turn it off and close it by hand."
-	fi
 	read_pr || true
 	if [ "$state" = MERGED ]; then
 		echo "$oid"
 		exit 0
+	fi
+	# gh closes first and deletes the branch after, so a failed command can still have closed the PR:
+	# the re-read state decides whether it is closed, and the command results say what else failed.
+	if [ "$state" = CLOSED ] || { [ -z "$state" ] && [ "$closed" = 1 ]; }; then
+		if [ "$closed" = 0 ]; then
+			note="Pull request #$pr is closed, but deleting $branch failed: delete it by hand."
+		elif [ "$off" = 0 ]; then
+			note="WARNING: could not turn auto-merge off for #$pr; it is closed, which stops a merge, but check it by hand."
+		else
+			note="Auto-merge is off, pull request #$pr is closed and $branch is deleted."
+		fi
+	elif [ "$off" = 1 ]; then
+		note="Auto-merge is off, but #$pr could not be closed or $branch deleted: close it and delete the branch by hand."
+	else
+		note="WARNING: could not turn auto-merge off for #$pr or close it; it may still merge. Turn it off and close it by hand."
 	fi
 	fail "$1 $note"
 }

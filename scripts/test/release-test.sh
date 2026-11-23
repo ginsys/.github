@@ -155,6 +155,8 @@ case "$1 $2" in
 	[ ! -e "$S/cancel-fail" ] && [ ! -e "$S/close-fail" ] || { echo "HTTP 403" >&2; exit 1; }
 	[ ! -e "$S/merged" ] || { echo "already merged" >&2; exit 1; }
 	echo closed >"$S/closed"
+	# Real gh closes first, then deletes the branch, and exits nonzero when only the deletion fails.
+	[ ! -e "$S/delete-fail" ] || { echo "HTTP 422: cannot delete the branch" >&2; exit 1; }
 	case " $* " in *" --delete-branch "*) g -C "$R" update-ref -d "refs/heads/$(cat "$S/pr-head")" ;; esac
 	;;
 "pr view")
@@ -597,6 +599,23 @@ rel DRY_RUN=0 WAIT_DEADLINE=1 WAIT_POLL=1 --
 eq "the close works but auto-merge stays on: red" 1 "$RC"
 has "the close works but auto-merge stays on: says so" "could not turn auto-merge off" "$OUT"
 lacks "the close works but auto-merge stays on: no claim that auto-merge is off" "Auto-merge is off" "$OUT"
+
+newfx deletefail
+echo never >"$GHS/mode"
+touch "$GHS/delete-fail" "$GHS/disable-fail"
+rel DRY_RUN=0 WAIT_DEADLINE=1 WAIT_POLL=1 --
+eq "the PR closes, auto-merge stays on, the branch deletion fails: red" 1 "$RC"
+has "partial close: says the PR is closed" "is closed" "$OUT"
+has "partial close: says to delete the branch by hand" "delete it by hand" "$OUT"
+lacks "partial close: no claim that it may still merge" "may still merge" "$OUT"
+
+newfx deletefail-on
+echo never >"$GHS/mode"
+touch "$GHS/delete-fail"
+rel DRY_RUN=0 WAIT_DEADLINE=1 WAIT_POLL=1 --
+eq "auto-merge off, the PR closes, the branch deletion fails: red" 1 "$RC"
+has "auto-merge off, branch deletion fails: says to delete the branch by hand" "delete it by hand" "$OUT"
+lacks "auto-merge off, branch deletion fails: no claim that it is deleted" "is deleted" "$OUT"
 
 newfx latemerge
 echo latemerge >"$GHS/mode"
