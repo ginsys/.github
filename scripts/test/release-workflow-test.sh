@@ -93,6 +93,11 @@ check() { if [ "$2" = "$3" ]; then ok "$1"; else bad "$1" "expected: $2" "actual
 check "release-dry-run.yml passes dry_run: true" true "$(yq '.jobs."dry-run".with.dry_run' "$DRYRUN")"
 check "the dry run is of start-next-minor, which makes no tag" start-next-minor "$(yq '.jobs."dry-run".with.action' "$DRYRUN")"
 check "release-dry-run.yml reads no secret" 0 "$(yq '. | tostring' "$DRYRUN" | grep -c 'secrets\.' || true)"
+# The snapshots must fail on a failed read (bash with pipefail) and list every open pull request.
+check "release-dry-run.yml runs its steps with bash -e and pipefail" bash "$(yq '.defaults.run.shell' "$DRYRUN")"
+check "both snapshots list up to 1000 open pull requests" 2 "$(grep -c -- '--state open --limit 1000' "$DRYRUN" || true)"
+check "control: the same checks fail on a copy without them" "|0" \
+	"$(sed -e '/shell: bash/d' -e 's/ --limit 1000//' "$DRYRUN" >"$T/dry.yml"; echo "$(yq '.defaults.run.shell // ""' "$T/dry.yml")|$(grep -c -- '--state open --limit 1000' "$T/dry.yml" || true)")"
 hits=$(grep -rnE 'dry_run: *(false|"?0"?)$|--admin|bypass' "$ROOT/.github/workflows" "$ROOT/scripts/release" || true)
 if [ -z "$hits" ]; then ok "no workflow or release script has a real-run call, --admin or a bypass"; else bad "no real-run call, --admin or bypass" "$hits"; fi
 printf 'x\n  dry_run: false\n' >"$T/probe.yml"
