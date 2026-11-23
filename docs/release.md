@@ -304,7 +304,8 @@ caller's repository: the files, the notes and the tag all come from the run and 
 2. A real run refuses unless the tag in the repository names `sha`. An annotated tag is peeled once.
 3. It writes the notes from `changelog-notes` and appends the footer. Missing or empty notes fail.
 4. It downloads every `release-*` artifact into `dist/` and fails when there is none: a release with no
-   files is a mistake. `write-sums.sh` then writes `SHA256SUMS` over the files in `dist/`, whether the
+   files is a mistake. Two artifacts that hold a file of the same name overwrite each other without a
+   message, so the caller's jobs give their files distinct names. `write-sums.sh` then writes `SHA256SUMS` over the files in `dist/`, whether the
    caller built sums of its own or not.
 5. A dry run prints the notes and the sums to the job summary, uploads them with the files as the
    artifact `publish-preview` for 14 days, and stops. Nothing is signed or published.
