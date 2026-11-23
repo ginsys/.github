@@ -14,14 +14,15 @@ description = "actionlint on the workflows, shellcheck on the scripts"
 # finding locally that CI, with a clean environment, reports.
 run = """
 env -u SHELLCHECK_OPTS actionlint -ignore 'property "workflow_(repository|sha)" is not defined in object type'
-env -u SHELLCHECK_OPTS shellcheck scripts/*.sh scripts/test/*.sh
+env -u SHELLCHECK_OPTS shellcheck scripts/*.sh scripts/release/*.sh scripts/test/*.sh
 """
 
 [tasks.test]
-description = "Fixture tests for scripts/tracker-audit.sh and the pr-review.yml proxy URL"
+description = "Fixture tests for scripts/tracker-audit.sh, the pr-review.yml proxy URL and the changelog scripts"
 run = """
 bash scripts/test/tracker-audit-test.sh
 bash scripts/test/pr-review-proxy-url-test.sh .
+bash scripts/test/changelog-test.sh .
 """
 
 [tasks.upstream-sync]

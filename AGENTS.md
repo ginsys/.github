@@ -33,7 +33,7 @@ go-kure/.github. Read `README.md` first: it states what lives here and what live
 
 ## Before opening a PR
 
-`mise run verify` (actionlint, shellcheck, the tracker-audit fixture tests, action pins). If the
+`mise run verify` (actionlint, shellcheck, the fixture tests, action pins). If the
 policy or the labels changed, also `mise run settings-audit` and list the drift lines the change
 is expected to produce in the PR description, so the reviewer can tell intended drift from a
 mistake.
@@ -46,6 +46,9 @@ mistake.
   tracker-audit.yml   reusable issue-tracker audit (workflow_call)
   pr-review.yml       reusable Claude PR review (workflow_call), runs upstream's action on ginsys runners
   ci.yml              this repo's checks; `checks` aggregates them
+  changelog-fragment.yml  reusable PR check that a change carries a changelog fragment (workflow_call)
+docs/
+  release.md          the release standard: interfaces, scripts, how callers use them
 governance/
   repository-settings-policy.yaml
 standards/
@@ -53,7 +56,8 @@ standards/
   labels.md           conventions
 scripts/
   tracker-audit.sh
-  test/tracker-audit-test.sh
+  release/            changelog assembler and fragment check; release scripts as they land
+  test/               fixture tests: tracker-audit-test.sh, changelog-test.sh, pr-review-proxy-url-test.sh
 profile/README.md     organization profile
 renovate.json         extends go-kure's shared preset
 mise.toml             tool pins and the tasks ci.yml runs
