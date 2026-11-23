@@ -56,8 +56,8 @@ standards/
   labels.md           conventions
 scripts/
   tracker-audit.sh
-  release/            changelog assembler and fragment check; release scripts as they land
-  test/               fixture tests: tracker-audit-test.sh, changelog-test.sh, called-workflow-concurrency-test.sh, pr-review-proxy-url-test.sh
+  release/            changelog assembler, fragment check, release.sh and wait-merge.sh
+  test/               fixture tests: tracker-audit-test.sh, changelog-test.sh, release-test.sh, called-workflow-concurrency-test.sh, pr-review-proxy-url-test.sh
 profile/README.md     organization profile
 renovate.json         extends go-kure's shared preset
 mise.toml             tool pins and the tasks ci.yml runs
