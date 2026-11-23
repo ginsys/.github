@@ -332,7 +332,10 @@ real_run() {
 	body=$(mktemp)
 	if [ -n "$TAG" ]; then
 		title="release: $TAG"
-		printf '%s\n' "$NOTES" >"$body"
+		# Never the notes themselves: a pull request body holds at most 65,536 characters, and the notes of a
+		# first release can be several times that. The release notes are the section this pull request adds.
+		printf 'Release %s.\n\nThe release notes are the section [%s] of CHANGELOG.md in this pull request (%s lines).\n' \
+			"$TAG" "${TAG#v}" "$(printf '%s\n' "$NOTES" | wc -l)" >"$body"
 	else
 		printf 'Moves VERSION to %s.\n' "$NEXT" >"$body"
 	fi

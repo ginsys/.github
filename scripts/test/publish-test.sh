@@ -211,6 +211,26 @@ run G notes "$T/missing.md" "" "$T/out4.md"
 eq "notes: missing notes fail" 1 "$rc"
 if [ -e "$T/out3.md" ] || [ -e "$T/out4.md" ]; then bad "notes: a failure leaves no output file"; else ok "notes: a failure leaves no output file"; fi
 
+# notes <notes> <footer> <out> <changelog url>: a GitHub release body holds at most 125,000 characters,
+# so notes over 120,000 bytes become a pointer to the section in CHANGELOG.md.
+URL=https://github.com/ginsys/example/blob/v1.2.3/CHANGELOG.md
+{ printf -- '- x\n'; head -c 119995 /dev/zero | tr '\0' 'a'; printf '\n'; } >"$T/at-limit.md"
+eq "notes: the fixture at the limit is 120,000 bytes" 120000 "$(wc -c <"$T/at-limit.md")"
+run G notes "$T/at-limit.md" "Back up first." "$T/out6.md" "$URL"
+eq "notes: notes of 120,000 bytes pass" 0 "$rc"
+has "notes: notes of 120,000 bytes are kept whole" "$(cat "$T/at-limit.md")" "$(cat "$T/out6.md")"
+{ printf -- '- x\n'; head -c 119996 /dev/zero | tr '\0' 'a'; printf '\n'; } >"$T/over-limit.md"
+eq "notes: the fixture over the limit is 120,001 bytes" 120001 "$(wc -c <"$T/over-limit.md")"
+run G notes "$T/over-limit.md" "Back up first." "$T/out7.md" "$URL"
+eq "notes: notes of 120,001 bytes pass" 0 "$rc"
+has "notes: notes over the limit become a pointer to the section" "too long for a GitHub release" "$(cat "$T/out7.md")"
+has "notes: the pointer links CHANGELOG.md at the tag" "$URL" "$(cat "$T/out7.md")"
+lacks "notes: the pointer does not hold the notes" "aaaa" "$(cat "$T/out7.md")"
+has "notes: the footer still follows the pointer" "$(printf '\n\nBack up first.')" "$(cat "$T/out7.md")"
+run G notes "$T/over-limit.md" "Back up first." "$T/out8.md"
+eq "notes: notes over the limit with no changelog url fail" 1 "$rc"
+if [ -e "$T/out8.md" ]; then bad "notes: that failure leaves no output file"; else ok "notes: that failure leaves no output file"; fi
+
 # prerelease <tag>: 0 pre-release, 1 stable, 2 not a version tag
 run G prerelease v1.2.3-alpha.0
 eq "prerelease: alpha is a pre-release" 0 "$rc"

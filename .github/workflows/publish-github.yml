@@ -87,10 +87,12 @@ jobs:
           name: changelog-notes
           path: ${{ runner.temp }}/changelog-notes
 
+      # Notes too long for a release body become a link to the section in CHANGELOG.md at the tag.
       - name: Write the release notes
         env:
           FOOTER: ${{ inputs.notes-footer }}
-        run: bash "$TOOLS/publish-guard.sh" notes "$RUNNER_TEMP/changelog-notes/notes.md" "$FOOTER" "$RUNNER_TEMP/release-notes.md"
+          CHANGELOG_URL: ${{ github.server_url }}/${{ github.repository }}/blob/${{ inputs.tag }}/CHANGELOG.md
+        run: bash "$TOOLS/publish-guard.sh" notes "$RUNNER_TEMP/changelog-notes/notes.md" "$FOOTER" "$RUNNER_TEMP/release-notes.md" "$CHANGELOG_URL"
 
       # Any job of the caller's run may upload `release-<anything>`; changelog-notes and publish-preview
       # do not match.

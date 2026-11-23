@@ -438,7 +438,9 @@ eq "real: VERSION on main is the next number" v0.1.0-alpha.1 "$(git -C "$REMOTE"
 has "real: the changelog at the tag has the section, dated" "## [0.1.0-alpha.0] - 2030-01-02" "$(git -C "$REMOTE" show "$tagc:CHANGELOG.md")"
 eq "real: the fragment is gone at the tag" "" "$(git -C "$REMOTE" ls-tree --name-only "$tagc" changelog.d/12-a-thing.md)"
 eq "real: the PR title" "release: v0.1.0-alpha.0" "$(cat "$GHS/pr-title")"
-has "real: the PR body is the changelog section" "A thing. Refs o/r#12." "$(cat "$GHS/pr-body")"
+has "real: the PR body names the tag" "Release v0.1.0-alpha.0." "$(cat "$GHS/pr-body")"
+has "real: the PR body points at the section in CHANGELOG.md" "section [0.1.0-alpha.0] of CHANGELOG.md" "$(cat "$GHS/pr-body")"
+lacks "real: the PR body does not hold the notes" "A thing. Refs o/r#12." "$(cat "$GHS/pr-body")"
 has "real: no queue turns on auto-merge with rebase" "|pr merge 7 --auto --rebase" "$(calls)"
 has "real: the PR is opened with the App token" "app|pr create" "$(calls)"
 has "real: the tag is made with the workflow token" "workflow|api -X POST repos/o/r/git/refs" "$(calls)"
@@ -457,6 +459,21 @@ git -C "$REMOTE" update-ref refs/tags/v0.0.1 "$(git -C "$REMOTE" rev-parse main)
 rel DRY_RUN=0 --
 eq "real run on a changelog of several hundred KB: exits 0" 0 "$RC"
 eq "real run on a changelog of several hundred KB: the tag is made" "release: v0.1.0-alpha.0" "$(subject "$(remote_tag v0.1.0-alpha.0)")"
+
+# Notes far over GitHub's 65,536-character limit on a pull request body: the body stays short.
+newfx real-big-notes
+(
+	cd "$W" && {
+		printf '# Changelog\n\n## [Unreleased]\n\n### Changed\n\n'
+		seq 1 20000 | sed 's/^/- unreleased line /'
+	} >CHANGELOG.md && git add -A && fxgit commit -q -m "big notes" && git push -q origin HEAD:main
+)
+rel DRY_RUN=0 --
+eq "big notes: exits 0" 0 "$RC"
+has "big notes: the section holds the notes" "- unreleased line 20000" "$(git -C "$REMOTE" show "$(remote_tag v0.1.0-alpha.0):CHANGELOG.md")"
+eq "big notes: the PR body is far under 65,536 characters" 1 "$([ "$(wc -c <"$GHS/pr-body")" -lt 1000 ] && echo 1 || echo 0)"
+lacks "big notes: the PR body does not hold the notes" "unreleased line" "$(cat "$GHS/pr-body")"
+has "big notes: the PR body gives the section's line count" "(20" "$(cat "$GHS/pr-body")"
 
 newfx real-stage v0.1.0-alpha.3
 rel DRY_RUN=0 RELEASE_ACTION=release-as-beta CHANGELOG_DATE=UNSET --
