@@ -5,7 +5,8 @@ name: Release
 # run, cuts the release pull request, waits for its merge and makes the tag. A dry run (the default)
 # stops after `guard`. A caller pins this workflow by commit SHA, because the real run holds the App key.
 #
-# The caller grants `contents: write` to the job that calls this workflow. The concurrency group is
+# The caller grants `contents: write` and `pull-requests: read` to the job that calls this workflow.
+# The concurrency group is
 # on the `release` job alone and never cancels: the group may not be built from `github.workflow`,
 # which inside a called workflow is the caller's name (scripts/test/called-workflow-concurrency-test.sh).
 
@@ -47,8 +48,11 @@ jobs:
   guard:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # pull-requests: read for `gh pr list` in --check. A job block sets every other scope to none, and
+    # a called job cannot hold more than its caller granted, so the caller grants it too.
     permissions:
       contents: read
+      pull-requests: read
     outputs:
       tag: ${{ steps.check.outputs.tag }}
       version: ${{ steps.check.outputs.version }}

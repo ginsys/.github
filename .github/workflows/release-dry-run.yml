@@ -54,6 +54,7 @@ jobs:
     needs: before
     permissions:
       contents: write
+      pull-requests: read
     uses: ./.github/workflows/release.yml
     with:
       action: start-next-minor
