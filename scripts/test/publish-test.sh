@@ -212,24 +212,43 @@ eq "notes: missing notes fail" 1 "$rc"
 if [ -e "$T/out3.md" ] || [ -e "$T/out4.md" ]; then bad "notes: a failure leaves no output file"; else ok "notes: a failure leaves no output file"; fi
 
 # notes <notes> <footer> <out> <changelog url>: a GitHub release body holds at most 125,000 characters,
-# so notes over 120,000 bytes become a pointer to the section in CHANGELOG.md.
+# so a body (notes and footer) over 120,000 bytes links the section in CHANGELOG.md in place of the notes.
 URL=https://github.com/ginsys/example/blob/v1.2.3/CHANGELOG.md
-{ printf -- '- x\n'; head -c 119995 /dev/zero | tr '\0' 'a'; printf '\n'; } >"$T/at-limit.md"
+same() { if cmp -s "$2" "$3"; then ok "$1"; else bad "$1" "$(cmp "$2" "$3" 2>&1)"; fi; } # byte for byte
+notes_of() { { printf -- '- x\n'; head -c "$(($1 - 5))" /dev/zero | tr '\0' 'a'; printf '\n'; } >"$2"; } # <bytes> <file>
+pointer() { printf 'The notes of this release are too long for a GitHub release (%s bytes). They are its section in CHANGELOG.md:\n%s\n' "$1" "$URL"; }
+
+notes_of 120000 "$T/at-limit.md"
 eq "notes: the fixture at the limit is 120,000 bytes" 120000 "$(wc -c <"$T/at-limit.md")"
-run G notes "$T/at-limit.md" "Back up first." "$T/out6.md" "$URL"
-eq "notes: notes of 120,000 bytes pass" 0 "$rc"
-has "notes: notes of 120,000 bytes are kept whole" "$(cat "$T/at-limit.md")" "$(cat "$T/out6.md")"
-{ printf -- '- x\n'; head -c 119996 /dev/zero | tr '\0' 'a'; printf '\n'; } >"$T/over-limit.md"
+run G notes "$T/at-limit.md" "" "$T/out6.md" "$URL"
+eq "notes: a body of exactly 120,000 bytes passes" 0 "$rc"
+same "notes: a body of exactly 120,000 bytes is the notes, byte for byte" "$T/at-limit.md" "$T/out6.md"
+
+notes_of 119000 "$T/under.md"
+{ cat "$T/under.md"; printf '\nBack up first.\n'; } >"$T/want9.md"
+run G notes "$T/under.md" "Back up first." "$T/out9.md" "$URL"
+same "notes: notes and footer under the limit are written as before, byte for byte" "$T/want9.md" "$T/out9.md"
+
+notes_of 120001 "$T/over-limit.md"
 eq "notes: the fixture over the limit is 120,001 bytes" 120001 "$(wc -c <"$T/over-limit.md")"
-run G notes "$T/over-limit.md" "Back up first." "$T/out7.md" "$URL"
-eq "notes: notes of 120,001 bytes pass" 0 "$rc"
-has "notes: notes over the limit become a pointer to the section" "too long for a GitHub release" "$(cat "$T/out7.md")"
-has "notes: the pointer links CHANGELOG.md at the tag" "$URL" "$(cat "$T/out7.md")"
-lacks "notes: the pointer does not hold the notes" "aaaa" "$(cat "$T/out7.md")"
-has "notes: the footer still follows the pointer" "$(printf '\n\nBack up first.')" "$(cat "$T/out7.md")"
+pointer 120001 >"$T/want7.md"
+run G notes "$T/over-limit.md" "" "$T/out7.md" "$URL"
+eq "notes: a body of 120,001 bytes passes" 0 "$rc"
+same "notes: a body of 120,001 bytes becomes exactly the link to the section" "$T/want7.md" "$T/out7.md"
+
+notes_of 119990 "$T/near.md"
+{ pointer 120006; printf '\nBack up first.\n'; } >"$T/want10.md"
+run G notes "$T/near.md" "Back up first." "$T/out10.md" "$URL"
+eq "notes: notes under the limit that the footer pushes over pass" 0 "$rc"
+same "notes: the footer counts toward the limit, and still follows the link" "$T/want10.md" "$T/out10.md"
+
 run G notes "$T/over-limit.md" "Back up first." "$T/out8.md"
-eq "notes: notes over the limit with no changelog url fail" 1 "$rc"
-if [ -e "$T/out8.md" ]; then bad "notes: that failure leaves no output file"; else ok "notes: that failure leaves no output file"; fi
+eq "notes: a body over the limit with no changelog url fails" 1 "$rc"
+if [ -e "$T/out8.md" ] || [ -e "$T/out8.md.new" ]; then bad "notes: that failure leaves no output file"; else ok "notes: that failure leaves no output file"; fi
+longfooter=$(head -c 130000 /dev/zero | tr '\0' 'b')
+run G notes "$T/at-limit.md" "$longfooter" "$T/out11.md" "$URL"
+eq "notes: a footer too long for any release body fails" 1 "$rc"
+if [ -e "$T/out11.md" ] || [ -e "$T/out11.md.new" ]; then bad "notes: the long-footer failure leaves no output file"; else ok "notes: the long-footer failure leaves no output file"; fi
 
 # prerelease <tag>: 0 pre-release, 1 stable, 2 not a version tag
 run G prerelease v1.2.3-alpha.0
@@ -274,6 +293,11 @@ pub_problems() {
 	[ "$(yq '.jobs.publish.steps[] | select(.uses // "" | contains("upload-artifact")) | .with.name' "$f")" = publish-preview ] || echo "a dry run does not upload publish-preview"
 	[ "$(yq '.jobs.publish.steps[] | select(.uses // "" | contains("upload-artifact")) | .if' "$f")" = '${{ inputs.dry_run }}' ] || echo "publish-preview is uploaded outside a dry run"
 	[ "$(yq '[.jobs.publish.steps[] | select(.env.GH_TOKEN != null) | .env.GH_TOKEN] | unique | join(",")' "$f")" = '${{ github.token }}' ] || echo "gh is given a token other than the workflow token"
+	case "$(yq '.jobs.publish.steps[] | select(.run // "" | contains("publish-guard.sh\" notes")) | .run' "$f")" in
+	*'"$RUNNER_TEMP/release-notes.md" "$CHANGELOG_URL"') ;;
+	*) echo "the notes step does not pass the CHANGELOG.md URL" ;;
+	esac
+	[ "$(yq '.jobs.publish.steps[] | select(.run // "" | contains("publish-guard.sh\" notes")) | .env.CHANGELOG_URL' "$f")" = '${{ github.server_url }}/${{ github.repository }}/blob/${{ inputs.tag }}/CHANGELOG.md' ] || echo "the CHANGELOG.md URL is not the file at the tag"
 }
 
 pub_broken() { # <name> <perl substitution> <expected problem substring>
@@ -295,6 +319,8 @@ pub_broken permissions-set 's/(jobs:\n  publish:\n)/$1    permissions:\n      co
 pub_broken dry-default 's/default: true/default: false/' "dry_run does not default to true"
 pub_broken no-verify-tag 's/--verify-tag //' "no --verify-tag"
 pub_broken secret 's/GH_TOKEN: \$\{\{ github.token \}\}/GH_TOKEN: \${{ secrets.X }}/' "reads a secret"
+pub_broken notes-no-url 's/ "\$CHANGELOG_URL"//' "does not pass the CHANGELOG.md URL"
+pub_broken notes-url-main 's#/blob/\$\{\{ inputs.tag \}\}/CHANGELOG.md#/blob/main/CHANGELOG.md#' "not the file at the tag"
 
 out=$(pub_problems "$PUB")
 if [ -z "$out" ]; then ok "publish-github.yml keeps every rule"; else bad "publish-github.yml keeps every rule" "$out"; fi
