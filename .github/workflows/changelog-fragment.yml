@@ -4,17 +4,15 @@ name: Changelog fragment
 # never edit the same CHANGELOG.md lines. Verdicts and the fragment format: docs/release.md. A caller
 # triggers it on `pull_request` with the types opened, synchronize, reopened, labeled and unlabeled,
 # so that toggling the label no-changelog re-runs this check alone. The required check name is the
-# caller's job name; none is fixed here.
+# caller's job name; none is fixed here. It sets no `concurrency`: in a called workflow
+# `github.workflow` is the caller's name, so a group built from it equals the caller's own and the
+# run is cancelled as a deadlock. The caller owns cancel-in-progress (docs/release.md).
 
 on:
   workflow_call:
 
 permissions:
   contents: read
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
 
 jobs:
   changelog-fragment:
