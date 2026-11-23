@@ -208,6 +208,13 @@ caller's repository.
 | Outputs | `tag` (the tag the run makes; in a dry run, the tag a real run would make; empty for an action that only moves `VERSION`), `version` (the tag without `v`), `sha` (the commit the tag names; in a dry run, the dispatched commit) |
 | Grants | `contents: write` and `pull-requests: read` on the calling job (a called workflow can only narrow what it is given, so the run does not start without both). `guard` lists open pull requests with the workflow token |
 
+**A caller that can make a real release is triggered by `workflow_dispatch` only.** This holds for a
+caller of `release.yml`, `publish-github.yml` or `build-go.yml`, and for any job of its own that
+publishes, builds an image or pushes. The `inputs` context is empty on every other trigger, so on a
+pull request `dry_run: ${{ inputs.dry_run }}` passes an empty value and `if: ${{ !inputs.dry_run }}`
+is true: the job runs for real. To dry-run on pull requests, use a separate caller that passes the
+literal `dry_run: true`, as `release-dry-run.yml` does, and keep its own jobs off pull requests.
+
 **Pin it by commit SHA, never `@main`.** The real run holds the App key and can push a branch and make a
 tag. With `@main`, a change merged here would run in every repository's next release with no pull request
 there to read. The pin moves by a pull request in the caller, and a dry run after the move is the proof.
