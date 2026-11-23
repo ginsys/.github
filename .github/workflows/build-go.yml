@@ -1,0 +1,89 @@
+name: Build Go release
+
+# Reusable Go build workflow (docs/release.md, "The Go build workflow"). GoReleaser builds and archives
+# the caller's binaries from its own .goreleaser.yaml in snapshot mode, which publishes nothing, and the
+# archives are uploaded as the run artifact `release-go`, for publish-github.yml. The same artifact feeds
+# a dry run and a real run, so a dry run really builds.
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: The tag being released, as release.yml outputs it. It stamps the build and the archive names.
+        type: string
+        required: true
+      sha:
+        description: The commit to build (release.yml's `sha`).
+        type: string
+        required: true
+      go-version-file:
+        description: The file setup-go reads the Go version from.
+        type: string
+        default: go.mod
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout reads an empty `ref` as the default branch, which would pair this workflow
+      # with whatever script main holds. Refuse instead.
+      - name: Require this workflow's own commit
+        env:
+          WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
+        run: |
+          if [ -z "$WORKFLOW_REPOSITORY" ] || [ -z "$WORKFLOW_SHA" ]; then
+            echo "::error::job.workflow_repository or job.workflow_sha is empty, so the scripts cannot be checked out at this workflow's own commit."
+            exit 1
+          fi
+
+      - name: Check out the commit to build
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.sha }}
+          persist-credentials: false
+
+      - name: Check out the release scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .release-tools
+          sparse-checkout: scripts/release
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
+        with:
+          go-version-file: ${{ inputs.go-version-file }}
+
+      # An exact version, pinned here: a floating constraint would build with whatever is newest on the
+      # day, which no one can reproduce.
+      - name: Build and archive
+        uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7
+        with:
+          version: "2.20.3"
+          args: release --snapshot --clean
+        env:
+          RELEASE_VERSION: ${{ inputs.tag }}
+
+      - name: Check the archives
+        env:
+          TAG: ${{ inputs.tag }}
+        run: bash .release-tools/scripts/release/check-dist.sh dist "$TAG"
+
+      - name: Upload the archives
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-go
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error

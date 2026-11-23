@@ -52,6 +52,8 @@ mistake.
   changelog-fragment.yml  reusable PR check that a change carries a changelog fragment (workflow_call)
   release.yml         reusable release: guard and preview with no secret, real run opens the release PR and tags
   release-dry-run.yml a dry run of release.yml on this repo's own VERSION and CHANGELOG.md
+  publish-github.yml  reusable publish: files and notes from the run become a GitHub release with SHA256SUMS, optionally signed
+  build-go.yml        reusable Go build: GoReleaser snapshot, archives out as the artifact release-go
 VERSION, CHANGELOG.md  the start of this repo's own versioning; nothing is released from here yet
 docs/
   release.md          the release standard: interfaces, scripts, how callers use them
@@ -62,8 +64,8 @@ standards/
   labels.md           conventions
 scripts/
   tracker-audit.sh
-  release/            changelog assembler, fragment check, release.sh and wait-merge.sh
-  test/               fixture tests: tracker-audit-test.sh, changelog-test.sh, release-test.sh, release-workflow-test.sh, called-workflow-concurrency-test.sh, pr-review-proxy-url-test.sh
+  release/            changelog assembler, fragment check, release.sh, wait-merge.sh, publish-guard.sh, write-sums.sh and check-dist.sh
+  test/               fixture tests: tracker-audit-test.sh, changelog-test.sh, release-test.sh, release-workflow-test.sh, publish-test.sh, called-workflow-concurrency-test.sh, pr-review-proxy-url-test.sh
 profile/README.md     organization profile
 renovate.json         extends go-kure's shared preset
 mise.toml             tool pins and the tasks ci.yml runs
