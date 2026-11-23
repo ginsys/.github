@@ -133,14 +133,20 @@ it turns auto-merge off, closes the pull request and deletes the branch: nothing
 branch, and a rerun cuts a new release. The 90-minute deadline (elapsed time) and six failed reads in a
 row (of the pull request, or of the tip, counted together) end the run the same way, so that a merge
 cannot happen after the script has stopped watching; a closed pull request ends it at once. If the
-cancelling itself fails, the message says so and that the pull request may still merge. A cancelled
-run gets an interrupt and then a terminate signal a few seconds later, and the script cancels the
-release on either, so a person who cancels the run leaves no pull request that merges on its own.
-Only a kill with no warning (the runner lost, the job killed) skips this, and the next `--check`
-then stops at the untagged section as described below. The job that calls the script therefore needs
-a `timeout-minutes` larger than the 90-minute deadline plus the steps after it, so that the script's
-own deadline is the one that fires. A `VERSION` number of more than nine digits is refused. The tag call is tried three times, then the exact command
-is printed.
+cancelling itself fails, the message says so and that the pull request may still merge.
+
+A cancelled or timed-out run gets an interrupt and then a terminate signal, a few seconds apart. The
+runner sends them to the process of the step only, never to its children. So the step must run
+`release.sh` as that process (`exec scripts/release/release.sh`, not a call from a longer shell
+script): `release.sh` passes the signal on to the wait, which cancels the release as above, and then
+waits for it to finish, so a pull request that merged anyway still gets its commits checked and its
+tag. A kill with no warning (the runner lost) skips all of this, and so does a signal in the second
+it takes to turn auto-merge on; the next `--check` then stops at the untagged section as described
+below. The job also needs a `timeout-minutes` larger than the 90-minute deadline plus the steps after
+it, so that the script's own deadline is the one that fires.
+
+A `VERSION` number of more than nine digits is refused. The tag call is tried three times, then the
+exact command is printed.
 
 ### A release that merged and was never tagged
 

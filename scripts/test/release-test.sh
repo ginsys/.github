@@ -618,42 +618,84 @@ eq "auto-merge off, the PR closes, the branch deletion fails: red" 1 "$RC"
 has "auto-merge off, branch deletion fails: says to delete the branch by hand" "delete it by hand" "$OUT"
 lacks "auto-merge off, branch deletion fails: no claim that it is deleted" "is deleted" "$OUT"
 
-# A run that is cancelled or timed out is killed with INT, then TERM: the wait must cancel the release
-# on the way out, or auto-merge stays on and the pull request merges with nobody to check or tag it.
-for sig in TERM INT TERM-ALONE; do
-	newfx "signal-$sig"
-	echo never >"$GHS/mode"
-	echo release/v0.1.0-alpha.0 >"$GHS/pr-head"
-	git -C "$REMOTE" update-ref refs/heads/release/v0.1.0-alpha.0 main
-	# A background job starts with SIGINT ignored and bash cannot trap an ignored signal; a step of a
-	# real run does not, so perl puts the default back before it starts the script.
-	# setsid makes it a process group of its own, which the signal below reaches with its sleep, as a
-	# runner's does; a signal to the shell alone is held back while a foreground sleep runs.
-	setsid perl -e "\$SIG{INT} = 'DEFAULT'; exec @ARGV" -- env -C "$W" PATH="$T/bin:$PATH" GHSTATE="$GHS" GHREMOTE="$REMOTE" HOME="$D/home" GITHUB_REPOSITORY=o/r GH_TOKEN=app \
-		WAIT_POLL=30 WAIT_DEADLINE=300 bash "$ROOT/scripts/release/wait-merge.sh" 7 "$(git -C "$REMOTE" rev-parse main)" release/v0.1.0-alpha.0 \
-		>"$D/wait.out" 2>&1 &
+# A run that is cancelled or timed out is signalled with INT, then TERM, and the runner signals the
+# step's own process only, never its children. Whatever receives the signal must cancel the release on
+# the way out, or auto-merge stays on and the pull request merges with nobody to check or tag it.
+# sigcase <label> <signal> <script> [args...]: start the script in a session of its own, signal its pid
+# alone, give it 5 seconds to end, and set WRC and WOUT. A background job starts with SIGINT ignored and
+# bash cannot trap an ignored signal, so perl puts the default back, as a runner's step has it.
+sigcase() {
+	local label=$1 sig=$2 wpid args=() a
+	shift 2
+	newfx "signal-$label"
+	echo "${SIGMODE:-never}" >"$GHS/mode"
+	for a in "$@"; do # @TIP@ is this fixture's tip of main, known only after newfx
+		if [ "$a" = @TIP@ ]; then
+			args+=("$(git -C "$REMOTE" rev-parse main)")
+			# A wait started by hand needs the pull request's branch; a release run makes its own.
+			echo release/v0.1.0-alpha.0 >"$GHS/pr-head"
+			git -C "$REMOTE" update-ref refs/heads/release/v0.1.0-alpha.0 main
+		else
+			args+=("$a")
+		fi
+	done
+	setsid perl -e "\$SIG{INT} = 'DEFAULT'; exec @ARGV" -- env -C "$W" PATH="$T/bin:$PATH" GHSTATE="$GHS" GHREMOTE="$REMOTE" HOME="$D/home" \
+		GITHUB_REPOSITORY=o/r GITHUB_OUTPUT="$D/out" GH_TOKEN=app TAG_TOKEN=workflow WAIT_POLL=30 WAIT_MISSES=3 WAIT_DEADLINE=300 \
+		TAG_RETRY_SLEEP=0 RELEASE_ACTION=release DRY_RUN=0 RELEASE_BRANCH=main RELEASE_REF_TYPE=branch DEFAULT_BRANCH=main \
+		CHANGELOG_DATE=2030-01-02 bash "${args[@]}" >"$D/sig.out" 2>&1 &
 	wpid=$!
 	for _ in $(seq 1 100); do
 		case "$(calls)" in *"pr view"*) break ;; esac
 		sleep 0.1
 	done
-	if [ "$sig" = TERM-ALONE ]; then # the shell alone, with its sleep still running
-		kill -s TERM "$wpid"
-	else
-		kill -s "$sig" -- "-$wpid"
-	fi
-	for _ in $(seq 1 50); do # it must end within 5 seconds, not at the end of a 30 second sleep
+	kill -s "$sig" "$wpid"
+	for _ in $(seq 1 50); do # not at the end of a 30 second sleep
 		kill -0 "$wpid" 2>/dev/null || break
 		sleep 0.1
 	done
-	kill -s KILL -- "-$wpid" 2>/dev/null
+	kill -s KILL -- "-$wpid" 2>/dev/null # the session: an orphaned wait of a failing run
 	wait "$wpid"
 	WRC=$?
-	eq "a $sig while waiting: red" 1 "$WRC"
-	has "a $sig while waiting: auto-merge is turned off" "pr merge 7 --disable-auto" "$(calls)"
-	has "a $sig while waiting: the pull request is closed and its branch deleted" "pr close 7 --delete-branch" "$(calls)"
-	has "a $sig while waiting: says the run was stopped" "was stopped" "$(cat "$D/wait.out")"
+	WOUT=$(cat "$D/sig.out")
+}
+
+for sig in TERM INT; do
+	# the wait alone
+	sigcase "wait-$sig" "$sig" "$ROOT/scripts/release/wait-merge.sh" 7 @TIP@ release/v0.1.0-alpha.0
+	eq "a $sig to the wait: red" 1 "$WRC"
+	has "a $sig to the wait: auto-merge is turned off" "pr merge 7 --disable-auto" "$(calls)"
+	has "a $sig to the wait: the pull request is closed and its branch deleted" "pr close 7 --delete-branch" "$(calls)"
+	has "a $sig to the wait: says the run was stopped" "was stopped" "$WOUT"
+
+	# the release script, the process a runner signals, with the wait two levels below its step
+	sigcase "release-$sig" "$sig" "$REL"
+	eq "a $sig to release.sh: red" 1 "$WRC"
+	has "a $sig to release.sh: auto-merge is turned off" "pr merge 7 --disable-auto" "$(calls)"
+	has "a $sig to release.sh: the pull request is closed and its branch deleted" "pr close 7 --delete-branch" "$(calls)"
+	has "a $sig to release.sh: says the run was stopped" "was stopped" "$WOUT"
+	eq "a $sig to release.sh: no tag" "" "$(remote_tag v0.1.0-alpha.0)"
 done
+
+# A pull request that merged as the run was stopped still gets its commits checked and its tag: the
+# release script waits for the wait to finish and takes its answer.
+SIGMODE=latemerge sigcase release-latemerge TERM "$REL"
+
+eq "a stop that races a merge: exits 0" 0 "$WRC"
+eq "a stop that races a merge: still tagged" "release: v0.1.0-alpha.0" "$(subject "$(remote_tag v0.1.0-alpha.0)")"
+
+# stop returns a merge it has already read, even when every read after it fails.
+newfx readmerge
+echo never >"$GHS/mode"
+touch "$GHS/view-fail"
+# The snippet is for the inner shell, which expands it: single quotes are the point.
+# shellcheck disable=SC2016
+RMOUT=$(env -C "$W" PATH="$T/bin:$PATH" GHSTATE="$GHS" GHREMOTE="$REMOTE" HOME="$D/home" GITHUB_REPOSITORY=o/r \
+	timeout 20 bash -c 'source "$1" 7 tip release/x; state=MERGED; oid=abc123; stop "stopped"' -- "$ROOT/scripts/release/wait-merge.sh" 2>/dev/null)
+RMRC=$?
+eq "a merge already read when stop runs: returned, exit 0" 0 "$RMRC"
+eq "a merge already read when stop runs: its oid is printed" "abc123" "$RMOUT"
+eq "a merge already read when stop runs: nothing is cancelled" "" "$(calls | rg 'disable-auto|pr close' || true)"
+
 
 newfx weird
 echo weird >"$GHS/mode"

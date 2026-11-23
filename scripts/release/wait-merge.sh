@@ -27,6 +27,8 @@ limit=${WAIT_DEADLINE:-5400}
 
 err=$(mktemp)
 trap 'rm -f "$err"' EXIT
+state=""
+oid=""
 
 fail() {
 	printf 'ERROR: %s\n' "$1" >&2
@@ -50,6 +52,11 @@ read_pr() {
 stop() {
 	local off=1 closed=1 note
 	trap '' INT TERM # a second signal must not cut the cancel short
+	# A merge already read is a merge: hand it on, whatever the reason for stopping.
+	if [ "$state" = MERGED ]; then
+		echo "$oid"
+		exit 0
+	fi
 	gh pr merge "$pr" --disable-auto >&2 || off=0
 	gh pr close "$pr" --delete-branch >&2 || closed=0
 	read_pr || true
@@ -90,39 +97,41 @@ miss() {
 # moved <current tip>: the base moved under an open PR. A merge between the two reads is not a move.
 moved() {
 	read_pr || true
-	if [ "$state" = MERGED ]; then
-		echo "$oid"
-		exit 0
-	fi
 	stop "$base moved from $tip to $1 while pull request #$pr waited; the release was cut from the old tip."
 }
 
-deadline=$(($(date +%s) + limit))
-echo "Waiting for pull request #$pr (cut from $tip)..." >&2
-while [ "$(date +%s)" -lt "$deadline" ]; do
-	if read_pr; then
-		case "$state" in
-		MERGED)
-			echo "$oid"
-			exit 0
-			;;
-		CLOSED) fail "Pull request #$pr was closed without merging. Nothing reached $base." ;;
-		OPEN)
-			if cur=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$base" --jq .object.sha 2>"$err") && [ -n "$cur" ]; then
-				[ "$cur" = "$tip" ] || moved "$cur"
-				misses=0
-			else
-				miss "Reading $base"
-			fi
-			;;
-		*) stop "Pull request #$pr is in the state '$state'." ;;
-		esac
-	else
-		miss "Reading pull request #$pr"
-	fi
-	# Not a plain sleep: bash runs a trap only after a foreground command ends, and a cancelled run
-	# gets only a few seconds before the kill.
-	sleep "$poll" &
-	wait $! || true
-done
-stop "Pull request #$pr did not merge within $limit seconds."
+watch() {
+	local deadline cur
+	deadline=$(($(date +%s) + limit))
+	echo "Waiting for pull request #$pr (cut from $tip)..." >&2
+	while [ "$(date +%s)" -lt "$deadline" ]; do
+		if read_pr; then
+			case "$state" in
+			MERGED)
+				echo "$oid"
+				exit 0
+				;;
+			CLOSED) fail "Pull request #$pr was closed without merging. Nothing reached $base." ;;
+			OPEN)
+				if cur=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/$base" --jq .object.sha 2>"$err") && [ -n "$cur" ]; then
+					[ "$cur" = "$tip" ] || moved "$cur"
+					misses=0
+				else
+					miss "Reading $base"
+				fi
+				;;
+			*) stop "Pull request #$pr is in the state '$state'." ;;
+			esac
+		else
+			miss "Reading pull request #$pr"
+		fi
+		# Not a plain sleep: bash runs a trap only after a foreground command ends, and a cancelled run
+		# gets only a few seconds before the kill.
+		sleep "$poll" &
+		wait $! || true
+	done
+	stop "Pull request #$pr did not merge within $limit seconds."
+}
+
+# Sourced by the tests, which call the functions above; run as a script, it watches.
+(return 0 2>/dev/null) || watch
