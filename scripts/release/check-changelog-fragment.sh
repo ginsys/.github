@@ -40,7 +40,10 @@ dependabot/* | renovate/*) skip_reason="bot branch $head_ref" ;;
 release/*) skip_reason="release branch $head_ref" ;;
 esac
 
-tmp=$(mktemp -d "${TMPDIR:-/tmp}/check-changelog-fragment.XXXXXX")
+if ! tmp=$(mktemp -d "${TMPDIR:-/tmp}/check-changelog-fragment.XXXXXX"); then
+	echo "ERROR no temporary directory: check that TMPDIR is writable"
+	exit 2
+fi
 trap 'rm -rf "$tmp"' EXIT
 
 # The diff goes to a file first, NUL-delimited: a failed diff (no merge base with the base ref) must
