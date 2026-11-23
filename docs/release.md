@@ -133,9 +133,9 @@ it turns auto-merge off, closes the pull request and deletes the branch: nothing
 branch, and a rerun cuts a new release. The 90-minute deadline (elapsed time) and six failed reads in a
 row (of the pull request, or of the tip, counted together) end the run the same way, so that a merge
 cannot happen after the script has stopped watching; a closed pull request ends it at once. If the
-cancelling itself fails, the message says so and that the pull request may still merge. The calling
-job needs a `timeout-minutes` larger than the 90-minute deadline plus the steps after it, so that the
-script's own deadline is the one that fires.
+cancelling itself fails, the message says so and that the pull request may still merge. The job that
+runs the script needs a `timeout-minutes` larger than the 90-minute deadline plus the steps after it,
+so that the script's own deadline is the one that fires (the reusable release workflow sets 120).
 
 A `VERSION` number of more than nine digits is refused. The tag call is tried three times, then the
 exact command is printed.
@@ -145,6 +145,13 @@ exact command is printed.
 The script does not catch a cancelled run, a timeout or a lost runner: a kill leaves whatever state the
 run had reached. Two states are possible, and `release.sh --check` finds both. It only reads and
 refuses; a person runs the repair.
+
+`--check` looks at the one release branch its own action would use (`release/<tag>`, or
+`release/<next version>` for an action with no tag), so run it with the `RELEASE_ACTION` of the run that
+was interrupted: another action looks at another branch and can pass while the abandoned pull request
+is still open. To find an open one whatever the action was, list the release branches and pull
+requests: `git ls-remote --heads origin 'release/*'` and
+`gh pr list --state open --json number,headRefName --jq '.[] | select(.headRefName | startswith("release/"))'`.
 
 - **The pull request is still open.** `--check` refuses because `release/<tag>` exists on the remote
   or has an open pull request, and says so. Turn auto-merge off, close the pull request, delete the
