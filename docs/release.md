@@ -120,7 +120,9 @@ changelog section there: these are the release notes, in a dry run too.
    A, `release: <tag>` (the changelog cut, `VERSION` at the tag), and commit B (`VERSION` moved on). An
    action with no tag makes B only;
 2. pushes the branch, opens the pull request and turns on auto-merge: with `--auto` alone when the
-   default branch has a merge queue, otherwise with `--auto --rebase`;
+   default branch has a merge queue, otherwise with `--auto --rebase`. The pull request body names the
+   tag and points at the section the pull request adds to `CHANGELOG.md`, with its line count. It never
+   holds the notes themselves: a pull request body holds at most 65,536 characters;
 3. runs `wait-merge.sh`, then refuses to go on unless A as merged (A') and B as merged (B') are single-parent
    commits on the commit the release was cut from, with exactly the trees this run built, and A' has the
    subject `release: <tag>`;
@@ -310,7 +312,9 @@ caller's repository: the files, the notes and the tag all come from the run and 
    stops here. Three outcomes: no release is the one that goes on; a release refuses; a read that
    fails for any other reason also refuses, because it cannot tell.
 2. A real run refuses unless the tag in the repository names `sha`. An annotated tag is peeled once.
-3. It writes the notes from `changelog-notes` and appends the footer. Missing or empty notes fail.
+3. It writes the notes from `changelog-notes` and appends the footer. Missing or empty notes fail. A
+   GitHub release body holds at most 125,000 characters, so notes over 120,000 bytes are replaced by one
+   line that links the release's section in `CHANGELOG.md` at the tag, and the footer follows it.
 4. It downloads every `release-*` artifact into `dist/` and fails when there is none: a release with no
    files is a mistake. Two artifacts that hold a file of the same name overwrite each other without a
    message, so the caller's jobs give their files distinct names. `write-sums.sh` then writes `SHA256SUMS` over the files in `dist/`, whether the
