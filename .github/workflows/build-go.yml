@@ -20,6 +20,18 @@ on:
         description: The file setup-go reads the Go version from.
         type: string
         default: go.mod
+      node-version-file:
+        description: A file in the repository that setup-node reads the Node.js version from (package.json, .nvmrc, mise.toml). Empty, the default, sets up no Node.js.
+        type: string
+        default: ''
+      pre-build:
+        description: A shell command run in the repository root before GoReleaser, after Go and Node.js are set up. It sees RELEASE_VERSION and RELEASE_SHA. Empty, the default, runs nothing. Use a fixed command, never event data.
+        type: string
+        default: ''
+      post-build:
+        description: A shell command run in the repository root after GoReleaser and before the archives are checked, for a file that GoReleaser did not make and dist/ must hold. It sees RELEASE_VERSION and RELEASE_SHA. Empty, the default, runs nothing.
+        type: string
+        default: ''
 
 defaults:
   run:
@@ -64,6 +76,25 @@ jobs:
         with:
           go-version-file: ${{ inputs.go-version-file }}
 
+      # package-manager-cache is off: a release build keeps no cache that an earlier run could have filled.
+      - name: Set up Node.js
+        if: ${{ inputs.node-version-file != '' }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: ${{ inputs.node-version-file }}
+          package-manager-cache: false
+
+      # The command reaches the shell only through the environment, never inside the run text, so
+      # the input is not expanded into the script. GoReleaser empties dist/ when it starts, so
+      # nothing put there before it survives.
+      - name: Run the pre-build command
+        if: ${{ inputs.pre-build != '' }}
+        env:
+          PRE_BUILD: ${{ inputs.pre-build }}
+          RELEASE_VERSION: ${{ inputs.tag }}
+          RELEASE_SHA: ${{ inputs.sha }}
+        run: bash -eo pipefail -c "$PRE_BUILD"
+
       # An exact version, pinned here: a floating constraint would build with whatever is newest on the
       # day, which no one can reproduce.
       - name: Build and archive
@@ -73,6 +104,14 @@ jobs:
           args: release --snapshot --clean
         env:
           RELEASE_VERSION: ${{ inputs.tag }}
+
+      - name: Run the post-build command
+        if: ${{ inputs.post-build != '' }}
+        env:
+          POST_BUILD: ${{ inputs.post-build }}
+          RELEASE_VERSION: ${{ inputs.tag }}
+          RELEASE_SHA: ${{ inputs.sha }}
+        run: bash -eo pipefail -c "$POST_BUILD"
 
       - name: Check the archives
         env:
