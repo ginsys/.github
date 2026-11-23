@@ -36,6 +36,7 @@ by the forge.
 | `status/` | `in-progress`, `needs-review`, `needs-refinement`, `deferred` | `in-progress` and `needs-review` are mutually exclusive; `needs-refinement` may coexist with either; `deferred` (bronzeward only) marks work or a decision the owner put off, and the issue stays open |
 | `area/` | `api`, `database`, `secrets`, `compiler`, `publisher`, `operations`, `transport`, `observer`, `observability`, `design`, `docs`, `ci`, `store`, `dispatch`, `controller`, `adapters`, `workflow-automation` (`.github` only) | any number; open namespace (below) |
 | none | `dependencies`, `needs-human`, `unattended`, `security` | applied by Renovate to PRs; never chosen by a person |
+| none | `no-changelog` (bronzeward only so far) | put on a pull request by its author when the change needs no changelog fragment (CI, tests, docs-only); read by the shared changelog-fragment check (`docs/release.md`), which would otherwise fail the pull request |
 
 No `priority/` and no `effort/` in the shared taxonomy: milestones order the work. No
 `status/blocked`: blocking is expressed with GitHub's native issue dependencies, which the
