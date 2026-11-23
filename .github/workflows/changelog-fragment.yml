@@ -1,0 +1,62 @@
+name: Changelog fragment
+
+# Reusable PR check: a pull request records its release note as a file in changelog.d/, so two PRs
+# never edit the same CHANGELOG.md lines. Verdicts and the fragment format: docs/release.md. A caller
+# triggers it on `pull_request` with the types opened, synchronize, reopened, labeled and unlabeled,
+# so that toggling the label no-changelog re-runs this check alone. The required check name is the
+# caller's job name; none is fixed here.
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  changelog-fragment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout reads an empty `ref` as the default branch, which would pair this workflow
+      # with whatever script main holds. Refuse instead.
+      - name: Require this workflow's own commit
+        env:
+          WORKFLOW_REPOSITORY: ${{ job.workflow_repository }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
+        run: |
+          if [ -z "$WORKFLOW_REPOSITORY" ] || [ -z "$WORKFLOW_SHA" ]; then
+            echo "::error::job.workflow_repository or job.workflow_sha is empty, so the scripts cannot be checked out at this workflow's own commit."
+            exit 1
+          fi
+
+      # The check diffs against the merge base, which a depth-1 checkout lacks.
+      - name: Check out the pull request
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      # The scripts are this workflow's own, at its own commit, beside the caller's tree.
+      - name: Check out the release scripts
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: ${{ job.workflow_repository }}
+          ref: ${{ job.workflow_sha }}
+          path: .release-tools
+          sparse-checkout: scripts/release
+          persist-credentials: false
+
+      - name: Check the pull request adds a fragment
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF_NAME: ${{ github.head_ref }}
+          # contains() over the label list is an exact match; a joined list would let a
+          # label such as "docs,no-changelog" pass for the label no-changelog.
+          PR_NO_CHANGELOG: ${{ contains(github.event.pull_request.labels.*.name, 'no-changelog') }}
+        run: bash .release-tools/scripts/release/check-changelog-fragment.sh

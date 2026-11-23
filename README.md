@@ -43,7 +43,10 @@ onboarding hits the same three walls until it too goes public.
 | `.github/workflows/tracker-audit.yml` | Reusable, report-only issue-tracker hygiene audit |
 | `.github/workflows/tracker-audit-self.yml` | This repo's weekly caller of it |
 | `.github/workflows/pr-review.yml` | Reusable Claude PR review: go-kure's job wrapper on ginsys runners, upstream's `pr-review-threads` action pinned |
+| `.github/workflows/changelog-fragment.yml` | Reusable PR check that a change carries a changelog fragment (`docs/release.md`) |
 | `scripts/tracker-audit.sh` | The audit itself, fixture-tested by `scripts/test/tracker-audit-test.sh` |
+| `scripts/release/` | Changelog assembler and fragment check, fixture-tested by `scripts/test/changelog-test.sh` |
+| `docs/release.md` | The release standard: fragments and the PR check (more as the workflows land) |
 | `.github/workflows/ci.yml` | This repo's own checks: lint, tests, action pins |
 | `profile/README.md` | Organization profile |
 
@@ -102,7 +105,7 @@ Read back with `gh api orgs/ginsys/actions/runner-groups/1`,
 
 ## Local checks
 
-`mise run verify` runs what `ci.yml` runs: actionlint, shellcheck, the tracker-audit fixture tests
-and the action-pin check. `mise run settings-audit` clones go-kure/.github into `upstream/`
+`mise run verify` runs what `ci.yml` runs: actionlint, shellcheck, the fixture tests (tracker audit,
+PR-review proxy URL, changelog scripts) and the action-pin check. `mise run settings-audit` clones go-kure/.github into `upstream/`
 (gitignored) and runs a read-only audit with your own `gh` credentials; it forwards only `--ci`
 and `--json` and refuses everything else, so `apply` cannot run from a workstation.
