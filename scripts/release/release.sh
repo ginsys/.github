@@ -82,6 +82,9 @@ parse_version() {
 	V_PATCH=${BASH_REMATCH[3]}
 	V_TYPE=${BASH_REMATCH[5]}
 	V_NUM=${BASH_REMATCH[6]}
+	# Bash arithmetic is 64-bit: a longer number would wrap around into an older release line.
+	[ "${#V_MAJOR}" -le 9 ] && [ "${#V_MINOR}" -le 9 ] && [ "${#V_PATCH}" -le 9 ] && [ "${#V_NUM}" -le 9 ] \
+		|| die "Invalid version '$1': a number of more than 9 digits is not supported."
 }
 
 stage_order() {
@@ -200,7 +203,9 @@ check_tip() {
 check_cut_section_tagged() {
 	local ver
 	[ -f "$CHANGELOG_FILE" ] || return 0
-	ver=$(sed -n 's/^## \[\([0-9][^]]*\)\] - .*/\1/p' "$CHANGELOG_FILE" | head -n 1)
+	# The second sed reads to the end: a reader that quits early would break the first one with SIGPIPE
+	# on a long file, and pipefail would turn that into a failed assignment.
+	ver=$(sed -n 's/^## \[\([0-9][^]]*\)\] - .*/\1/p' "$CHANGELOG_FILE" | sed -n 1p)
 	[ -n "$ver" ] || return 0
 	git rev-parse -q --verify "refs/tags/v$ver" >/dev/null && return 0
 	[ -z "$(git ls-remote --tags "$REMOTE" "refs/tags/v$ver")" ] || return 0
@@ -259,26 +264,35 @@ cut_branch() {
 		bash "$ASSEMBLE" --write "${TAG#v}"
 		git add "$VERSION_FILE" "$CHANGELOG_FILE"
 		git commit --quiet -m "release: $TAG"
+		A_TREE=$(git rev-parse 'HEAD^{tree}')
 		log_ok "Committed: release: $TAG"
 	fi
 	commit_version "$NEXT" "$BUMP_MSG"
+	B_TREE=$(git rev-parse 'HEAD^{tree}')
 }
 
-# verify_merged <merged oid> <the tip it was cut from>: sets RELEASED to the commit the tag names.
-# A' is the parent of the merged tip; it must be the release commit, on the tip it was cut from.
+# parent_of <commit>: its one parent, or nothing when it has none or several.
+parent_of() {
+	local row
+	row=$(git rev-list --parents -n 1 "$1")
+	[ "$(printf '%s\n' "$row" | wc -w)" = 2 ] && printf '%s\n' "${row#* }"
+	return 0
+}
+
+# verify_merged <merged oid> <the tip it was cut from>: sets RELEASED to the commit the tag names. A
+# rebase merge replays the commits onto the tip, so A' and B' must be single-parent commits on the tip
+# this run cut from, and their trees must be the trees this run built: a tag is permanent, and it
+# names code nobody else may have changed on the way.
 verify_merged() {
 	local merged=$1 from=$2 a="$1"
 	git fetch --quiet --no-tags "$REMOTE" "refs/heads/$DEFAULT_BRANCH" || die "Could not fetch $DEFAULT_BRANCH from $REMOTE."
-	[ -z "$TAG" ] || a=$(git rev-parse "$merged^")
-	if [ "$(git rev-parse "$a^")" != "$from" ]; then
+	[ -z "$TAG" ] || a=$(parent_of "$merged")
+	if [ -z "$a" ] || [ "$(parent_of "$a")" != "$from" ]; then
 		die "The release commit is not on the tip $from it was cut from: another change merged first, and its code would ship in this tag with no line in its notes, so no tag was made. See docs/release.md, 'A release that merged and was never tagged'."
 	fi
-	if [ -n "$TAG" ]; then
-		if [ "$(git log -1 --format=%s "$a")" != "release: $TAG" ] \
-			|| [ "$(git show "$a:$VERSION_FILE" | tr -d '[:space:]')" != "$TAG" ] \
-			|| ! git show "$a:$CHANGELOG_FILE" | grep -qF "## [${TAG#v}] - "; then
-			die "The commit $a before the merged tip is not the release commit for $TAG. No tag was made."
-		fi
+	if [ "$(git rev-parse "$merged^{tree}")" != "$B_TREE" ] \
+		|| { [ -n "$TAG" ] && { [ "$(git rev-parse "$a^{tree}")" != "$A_TREE" ] || [ "$(git log -1 --format=%s "$a")" != "release: $TAG" ]; }; }; then
+		die "The merged commits are not the release commits this run built (a tree or a subject differs from the ones it pushed), so no tag was made."
 	fi
 	RELEASED=$a
 }
@@ -371,4 +385,6 @@ main() {
 }
 
 NOTES=""
+A_TREE=""
+B_TREE=""
 main "$@"

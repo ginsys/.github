@@ -64,12 +64,25 @@ advance() { # an unrelated commit lands on main
 }
 merge() {
 	helper
-	local head base c
+	local head base c i=0
 	head=$(cat "$S/pr-head")
 	base=$(g -C "$S/mc" merge-base origin/main "origin/$head")
 	g -C "$S/mc" checkout -q -B m origin/main
 	for c in $(g -C "$S/mc" rev-list --reverse "$base..origin/$head"); do
-		g -C "$S/mc" cherry-pick "$c" >/dev/null || exit 1
+		i=$((i + 1))
+		if [ "$i" = "$tamper" ] || { [ "$tamper" = del ] && [ "$i" = 1 ]; }; then
+			# replay this commit with an extra file, same message
+			g -C "$S/mc" cherry-pick --no-commit "$c" >/dev/null || exit 1
+			echo evil >"$S/mc/evil.txt"
+			g -C "$S/mc" add evil.txt
+			g -C "$S/mc" commit -q -C "$c"
+		elif [ "$tamper" = del ] && [ "$i" = 2 ]; then # and the next one takes it out again
+			g -C "$S/mc" cherry-pick --no-commit "$c" >/dev/null || exit 1
+			g -C "$S/mc" rm -q -f evil.txt
+			g -C "$S/mc" commit -q -C "$c"
+		else
+			g -C "$S/mc" cherry-pick "$c" >/dev/null || exit 1
+		fi
 	done
 	g -C "$S/mc" push -q origin m:main
 	g -C "$S/mc" rev-parse HEAD >"$S/merged"
@@ -77,6 +90,7 @@ merge() {
 merged_json() { printf '{"state":"MERGED","mergeCommit":{"oid":"%s"}}' "$(cat "$S/merged")" | out; }
 
 mode=$(cat "$S/mode" 2>/dev/null || echo merge)
+case "$mode" in tamper*) tamper=${mode#tamper} ;; *) tamper=0 ;; esac
 case "$1 $2" in
 "api repos/"*)
 	path=$2
@@ -86,6 +100,13 @@ case "$1 $2" in
 		{ cat "$S/rules.json" 2>/dev/null || echo '[]'; } | out
 		;;
 	*/git/ref/heads/*)
+		[ ! -e "$S/ref-fail" ] || { echo "HTTP 502" >&2; exit 1; }
+		if [ -e "$S/ref-flaky" ]; then # every other read fails
+			c=$(cat "$S/ref-n" 2>/dev/null || echo 0)
+			c=$((c + 1))
+			echo "$c" >"$S/ref-n"
+			[ $((c % 2)) = 0 ] || { echo "HTTP 502" >&2; exit 1; }
+		fi
 		if [ "$mode" = racemerge ] && [ ! -e "$S/merged" ]; then merge; fi
 		printf '{"object":{"sha":"%s"}}' "$(g -C "$R" rev-parse "refs/heads/${path##*/}")" | out
 		;;
@@ -122,8 +143,17 @@ case "$1 $2" in
 	done
 	echo "https://github.com/o/r/pull/7"
 	;;
-"pr merge") ;;
+"pr merge")
+	case " $* " in
+	*" --disable-auto "*)
+		[ ! -e "$S/cancel-fail" ] || { echo "HTTP 403" >&2; exit 1; }
+		if [ "$mode" = latemerge ] && [ ! -e "$S/merged" ]; then merge; fi # the merge slips in as it is cancelled
+		;;
+	esac
+	;;
 "pr close")
+	[ ! -e "$S/cancel-fail" ] || { echo "HTTP 403" >&2; exit 1; }
+	[ ! -e "$S/merged" ] || { echo "already merged" >&2; exit 1; }
 	echo closed >"$S/closed"
 	case " $* " in *" --delete-branch "*) g -C "$R" update-ref -d "refs/heads/$(cat "$S/pr-head")" ;; esac
 	;;
@@ -132,8 +162,16 @@ case "$1 $2" in
 	[ ! -e "$S/closed" ] || { echo '{"state":"CLOSED","mergeCommit":null}' | out; exit 0; }
 	[ ! -e "$S/merged" ] || { merged_json; exit 0; }
 	case "$mode" in
-	merge) merge; merged_json ;;
+	merge | tamper1 | tamper2 | tamperdel) merge; merged_json ;;
 	gap) advance; merge; merged_json ;;
+	gapempty) # main moves with a commit that changes no file: the trees match, the parent does not
+		helper
+		g -C "$S/mc" checkout -q -B m origin/main
+		g -C "$S/mc" commit -q --allow-empty -m "other: empty"
+		g -C "$S/mc" push -q origin m:main
+		merge
+		merged_json
+		;;
 	moved)
 		if [ ! -e "$S/advanced" ]; then advance; echo x >"$S/advanced"; fi
 		echo '{"state":"OPEN","mergeCommit":null}' | out
@@ -348,6 +386,22 @@ git -C "$REMOTE" update-ref refs/tags/v0.0.9 "$(git -C "$REMOTE" rev-parse main)
 rel -- --check
 eq "a cut section whose tag exists passes" 0 "$RC"
 
+newfx g-bigchangelog
+(
+	cd "$W" && {
+		printf '# Changelog\n\n## [Unreleased]\n\n## [0.0.9] - 2029-12-31\n\n'
+		seq 1 40000 | sed 's/^/- line /'
+		printf '\n## [0.0.8] - 2029-01-01\n'
+	} >CHANGELOG.md && git add -A && fxgit commit -q -m "big" && git push -q origin HEAD:main
+)
+git -C "$REMOTE" update-ref refs/tags/v0.0.9 "$(git -C "$REMOTE" rev-parse main)"
+rel -- --check
+eq "a changelog of several hundred KB is read to the end (no SIGPIPE)" 0 "$RC"
+
+newfx g-bignum v18446744073709551616.0.0
+rel RELEASE_ACTION=start-next-major -- --check
+refuses "a number that would wrap around 64 bits" 1 "more than 9 digits"
+
 newfx g-rules
 touch "$GHS/rules-fail"
 rel -- --check
@@ -381,6 +435,18 @@ eq "real: the tag output" v0.1.0-alpha.0 "$(output tag)"
 eq "real: the sha output is the tagged commit" "$tagc" "$(output sha)"
 eq "real: the date comes from CHANGELOG_DATE, not the clock" 1 "$(git -C "$REMOTE" show "$tagc:CHANGELOG.md" | grep -c '2030-01-02')"
 
+newfx real-big
+(
+	cd "$W" && {
+		printf '# Changelog\n\n## [Unreleased]\n\n## [0.0.1] - 2029-01-01\n\n'
+		seq 1 40000 | sed 's/^/- line /'
+	} >CHANGELOG.md && git add -A && fxgit commit -q -m "big" && git push -q origin HEAD:main
+)
+git -C "$REMOTE" update-ref refs/tags/v0.0.1 "$(git -C "$REMOTE" rev-parse main)"
+rel DRY_RUN=0 --
+eq "real run on a changelog of several hundred KB: exits 0" 0 "$RC"
+eq "real run on a changelog of several hundred KB: the tag is made" "release: v0.1.0-alpha.0" "$(subject "$(remote_tag v0.1.0-alpha.0)")"
+
 newfx real-stage v0.1.0-alpha.3
 rel DRY_RUN=0 RELEASE_ACTION=release-as-beta CHANGELOG_DATE=UNSET --
 eq "stage move: exits 0" 0 "$RC"
@@ -413,7 +479,7 @@ echo moved >"$GHS/mode"
 tip0=$(git -C "$REMOTE" rev-parse main)
 rel DRY_RUN=0 --
 eq "main moved while waiting: red" 1 "$RC"
-has "main moved while waiting: says nothing reached main" "moved" "$OUT"
+has "main moved while waiting: says what moved" "main moved from $tip0 to" "$OUT"
 eq "main moved while waiting: no tag" "" "$(remote_tag v0.1.0-alpha.0)"
 eq "main moved while waiting: the release branch is deleted" "" "$(remote_branch release/v0.1.0-alpha.0)"
 eq "main moved while waiting: only the unrelated commit landed" "other: unrelated change" "$(subject main)"
@@ -439,8 +505,24 @@ newfx foreign
 echo foreign >"$GHS/mode"
 rel DRY_RUN=0 --
 eq "a merged commit that is not the release commit: red" 1 "$RC"
-has "a merged commit that is not the release commit: says so" "is not the release commit for v0.1.0-alpha.0" "$OUT"
+has "a merged commit that is not the release commit: says so" "are not the release commits this run built" "$OUT"
 eq "a merged commit that is not the release commit: no tag" "" "$(remote_tag v0.1.0-alpha.0)"
+
+for n in 1 2 del; do
+	newfx "tamper$n"
+	echo "tamper$n" >"$GHS/mode"
+	rel DRY_RUN=0 --
+	eq "commit $n of the release merged with an extra file, same subject: red" 1 "$RC"
+	has "commit $n merged with an extra file: says the trees differ" "are not the release commits this run built" "$OUT"
+	eq "commit $n merged with an extra file: no tag" "" "$(remote_tag v0.1.0-alpha.0)"
+done
+# "del" adds the file to the tagged commit and takes it out in the next one: the final tree is right.
+
+newfx gapempty
+echo gapempty >"$GHS/mode"
+rel DRY_RUN=0 --
+eq "main moved by a commit with no change: the parent still differs, no tag" 1 "$RC"
+eq "main moved by a commit with no change: no tag made" "" "$(remote_tag v0.1.0-alpha.0)"
 
 newfx closed
 echo closed >"$GHS/mode"
@@ -455,6 +537,24 @@ touch "$GHS/view-fail"
 rel DRY_RUN=0 --
 eq "reads that keep failing: red" 1 "$RC"
 has "reads that keep failing: counted as misses" "3 reads in a row" "$OUT"
+has "reads that keep failing: auto-merge is cancelled" "pr merge 7 --disable-auto" "$(calls)"
+has "reads that keep failing: the PR is closed" "pr close 7 --delete-branch" "$(calls)"
+
+newfx tipmiss
+echo never >"$GHS/mode"
+touch "$GHS/ref-fail"
+rel DRY_RUN=0 --
+eq "tip reads that keep failing, PR reads fine: red" 1 "$RC"
+has "tip reads that keep failing: counted as misses" "Reading main failed 3 reads in a row" "$OUT"
+has "tip reads that keep failing: auto-merge is cancelled" "pr merge 7 --disable-auto" "$(calls)"
+
+newfx flaky
+echo never >"$GHS/mode"
+touch "$GHS/ref-flaky"
+rel DRY_RUN=0 WAIT_DEADLINE=2 --
+eq "tip reads that fail every other poll: never a streak, red at the deadline" 1 "$RC"
+has "tip reads that fail every other poll: ends at the deadline" "within 2 seconds" "$OUT"
+lacks "tip reads that fail every other poll: not counted as a streak" "reads in a row" "$OUT"
 
 newfx deadline
 echo never >"$GHS/mode"
@@ -462,6 +562,23 @@ rel DRY_RUN=0 WAIT_DEADLINE=1 WAIT_POLL=1 --
 eq "a PR that never merges: red at the deadline" 1 "$RC"
 has "a PR that never merges: says the deadline" "within 1 seconds" "$OUT"
 eq "a PR that never merges: no tag" "" "$(remote_tag v0.1.0-alpha.0)"
+has "a PR that never merges: auto-merge is cancelled" "pr merge 7 --disable-auto" "$(calls)"
+has "a PR that never merges: says the cancel worked" "Auto-merge is off" "$OUT"
+eq "a PR that never merges: the release branch is deleted" "" "$(remote_branch release/v0.1.0-alpha.0)"
+
+newfx cancelfail
+echo never >"$GHS/mode"
+touch "$GHS/cancel-fail"
+rel DRY_RUN=0 WAIT_DEADLINE=1 WAIT_POLL=1 --
+eq "a cancel that fails: red" 1 "$RC"
+has "a cancel that fails: says it may still merge" "may still merge" "$OUT"
+lacks "a cancel that fails: does not claim a clean cancel" "Auto-merge is off" "$OUT"
+
+newfx latemerge
+echo latemerge >"$GHS/mode"
+rel DRY_RUN=0 WAIT_DEADLINE=1 WAIT_POLL=1 --
+eq "a merge that slips in as the run is cancelled: judged, not denied" 0 "$RC"
+eq "a merge that slips in as the run is cancelled: the tag is made" "release: v0.1.0-alpha.0" "$(subject "$(remote_tag v0.1.0-alpha.0)")"
 
 newfx tagfail
 touch "$GHS/tag-fail"
