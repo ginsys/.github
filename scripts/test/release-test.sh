@@ -618,84 +618,34 @@ eq "auto-merge off, the PR closes, the branch deletion fails: red" 1 "$RC"
 has "auto-merge off, branch deletion fails: says to delete the branch by hand" "delete it by hand" "$OUT"
 lacks "auto-merge off, branch deletion fails: no claim that it is deleted" "is deleted" "$OUT"
 
-# A run that is cancelled or timed out is signalled with INT, then TERM, and the runner signals the
-# step's own process only, never its children. Whatever receives the signal must cancel the release on
-# the way out, or auto-merge stays on and the pull request merges with nobody to check or tag it.
-# sigcase <label> <signal> <script> [args...]: start the script in a session of its own, signal its pid
-# alone, give it 5 seconds to end, and set WRC and WOUT. A background job starts with SIGINT ignored and
-# bash cannot trap an ignored signal, so perl puts the default back, as a runner's step has it.
-sigcase() {
-	local label=$1 sig=$2 wpid args=() a
-	shift 2
-	newfx "signal-$label"
-	echo "${SIGMODE:-never}" >"$GHS/mode"
-	for a in "$@"; do # @TIP@ is this fixture's tip of main, known only after newfx
-		if [ "$a" = @TIP@ ]; then
-			args+=("$(git -C "$REMOTE" rev-parse main)")
-			# A wait started by hand needs the pull request's branch; a release run makes its own.
-			echo release/v0.1.0-alpha.0 >"$GHS/pr-head"
-			git -C "$REMOTE" update-ref refs/heads/release/v0.1.0-alpha.0 main
-		else
-			args+=("$a")
-		fi
-	done
-	setsid perl -e "\$SIG{INT} = 'DEFAULT'; exec @ARGV" -- env -C "$W" PATH="$T/bin:$PATH" GHSTATE="$GHS" GHREMOTE="$REMOTE" HOME="$D/home" \
-		GITHUB_REPOSITORY=o/r GITHUB_OUTPUT="$D/out" GH_TOKEN=app TAG_TOKEN=workflow WAIT_POLL=30 WAIT_MISSES=3 WAIT_DEADLINE=300 \
-		TAG_RETRY_SLEEP=0 RELEASE_ACTION=release DRY_RUN=0 RELEASE_BRANCH=main RELEASE_REF_TYPE=branch DEFAULT_BRANCH=main \
-		CHANGELOG_DATE=2030-01-02 bash "${args[@]}" >"$D/sig.out" 2>&1 &
-	wpid=$!
-	for _ in $(seq 1 100); do
-		case "$(calls)" in *"pr view"*) break ;; esac
-		sleep 0.1
-	done
-	kill -s "$sig" "$wpid"
-	for _ in $(seq 1 50); do # not at the end of a 30 second sleep
-		kill -0 "$wpid" 2>/dev/null || break
-		sleep 0.1
-	done
-	kill -s KILL -- "-$wpid" 2>/dev/null # the session: an orphaned wait of a failing run
-	wait "$wpid"
-	WRC=$?
-	WOUT=$(cat "$D/sig.out")
-}
+# A run that was killed leaves a state the next --check finds, and a person repairs. Two states.
+# (1) The pull request is still open: the release branch is on the remote.
+newfx interrupted-open
+git -C "$REMOTE" update-ref refs/heads/release/v0.1.0-alpha.0 main
+rel -- --check
+refuses "an interrupted run whose release branch is still on the remote" 1 "release/v0.1.0-alpha.0"
+git -C "$REMOTE" update-ref -d refs/heads/release/v0.1.0-alpha.0
+rel -- --check
+eq "the same run after the branch is deleted by hand: passes" 0 "$RC"
 
-for sig in TERM INT; do
-	# the wait alone
-	sigcase "wait-$sig" "$sig" "$ROOT/scripts/release/wait-merge.sh" 7 @TIP@ release/v0.1.0-alpha.0
-	eq "a $sig to the wait: red" 1 "$WRC"
-	has "a $sig to the wait: auto-merge is turned off" "pr merge 7 --disable-auto" "$(calls)"
-	has "a $sig to the wait: the pull request is closed and its branch deleted" "pr close 7 --delete-branch" "$(calls)"
-	has "a $sig to the wait: says the run was stopped" "was stopped" "$WOUT"
-
-	# the release script, the process a runner signals, with the wait two levels below its step
-	sigcase "release-$sig" "$sig" "$REL"
-	eq "a $sig to release.sh: red" 1 "$WRC"
-	has "a $sig to release.sh: auto-merge is turned off" "pr merge 7 --disable-auto" "$(calls)"
-	has "a $sig to release.sh: the pull request is closed and its branch deleted" "pr close 7 --delete-branch" "$(calls)"
-	has "a $sig to release.sh: says the run was stopped" "was stopped" "$WOUT"
-	eq "a $sig to release.sh: no tag" "" "$(remote_tag v0.1.0-alpha.0)"
-done
-
-# A pull request that merged as the run was stopped still gets its commits checked and its tag: the
-# release script waits for the wait to finish and takes its answer.
-SIGMODE=latemerge sigcase release-latemerge TERM "$REL"
-
-eq "a stop that races a merge: exits 0" 0 "$WRC"
-eq "a stop that races a merge: still tagged" "release: v0.1.0-alpha.0" "$(subject "$(remote_tag v0.1.0-alpha.0)")"
-
-# stop returns a merge it has already read, even when every read after it fails.
-newfx readmerge
-echo never >"$GHS/mode"
-touch "$GHS/view-fail"
-# The snippet is for the inner shell, which expands it: single quotes are the point.
-# shellcheck disable=SC2016
-RMOUT=$(env -C "$W" PATH="$T/bin:$PATH" GHSTATE="$GHS" GHREMOTE="$REMOTE" HOME="$D/home" GITHUB_REPOSITORY=o/r \
-	timeout 20 bash -c 'source "$1" 7 tip release/x; state=MERGED; oid=abc123; stop "stopped"' -- "$ROOT/scripts/release/wait-merge.sh" 2>/dev/null)
-RMRC=$?
-eq "a merge already read when stop runs: returned, exit 0" 0 "$RMRC"
-eq "a merge already read when stop runs: its oid is printed" "abc123" "$RMOUT"
-eq "a merge already read when stop runs: nothing is cancelled" "" "$(calls | rg 'disable-auto|pr close' || true)"
-
+# (2) The release merged and was never tagged: the tag call fails after the merge.
+newfx interrupted-merged
+touch "$GHS/tag-fail"
+rel DRY_RUN=0 --
+eq "a release that merged and was not tagged: the run is red" 1 "$RC"
+eq "a release that merged and was not tagged: no tag" "" "$(remote_tag v0.1.0-alpha.0)"
+git -C "$W" fetch -q origin
+git -C "$W" reset -q --hard origin/main
+rel -- --check
+refuses "the next --check shows the untagged release" 1 "no tag v0.1.0-alpha.0"
+has "the refusal names the repair" "revert its commit 'release: v0.1.0-alpha.0'" "$OUT"
+# The repair: revert the release commit in a change to the default branch, as a pull request would.
+git -C "$W" revert --no-edit HEAD~1 >/dev/null 2>&1
+git -C "$W" push -q origin HEAD:main
+eq "the repair restores the fragment" "yes" "$([ -f "$W/changelog.d/12-a-thing.md" ] && echo yes || echo no)"
+rel -- --check
+eq "after the repair --check passes" 0 "$RC"
+has "after the repair the next release is the skipped number's successor" "v0.1.0-alpha.1" "$OUT"
 
 newfx weird
 echo weird >"$GHS/mode"

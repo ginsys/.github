@@ -300,36 +300,13 @@ verify_merged() {
 	git fetch --quiet --no-tags "$REMOTE" "refs/heads/$DEFAULT_BRANCH" || die "Could not fetch $DEFAULT_BRANCH from $REMOTE."
 	[ -z "$TAG" ] || a=$(parent_of "$merged")
 	if [ -z "$a" ] || [ "$(parent_of "$a")" != "$from" ]; then
-		die "The release commit is not on the tip $from it was cut from: another change merged first, and its code would ship in this tag with no line in its notes, so no tag was made. See docs/release.md, 'A release that merged and was never tagged'."
+		die "The release commit is not on the tip $from it was cut from: another change merged first, and its code would ship in this tag with no line in its notes, so no tag was made. See docs/release.md, 'A run that was interrupted'."
 	fi
 	if [ "$(git rev-parse "$merged^{tree}")" != "$B_TREE" ] \
 		|| { [ -n "$TAG" ] && { [ "$(git rev-parse "$a^{tree}")" != "$A_TREE" ] || [ "$(git log -1 --format=%s "$a")" != "release: $TAG" ]; }; }; then
 		die "The merged commits are not the release commits this run built (a tree or a subject differs from the ones it pushed), so no tag was made."
 	fi
 	RELEASED=$a
-}
-
-# wait_for_merge <pr> <tip> <branch>: runs wait-merge.sh and sets MERGED_OID. A runner that cancels a run
-# signals this script alone, never its children, so a signal is passed on to the wait, which cancels
-# the release, and this script waits for it to finish: a pull request that merged anyway still gets its
-# commits checked and its tag.
-wait_for_merge() {
-	local out rc=0
-	out=$(mktemp)
-	bash "$WAIT" "$1" "$2" "$3" >"$out" &
-	WAIT_PID=$!
-	trap 'kill -s TERM "$WAIT_PID" 2>/dev/null || true' INT TERM
-	wait "$WAIT_PID" || rc=$?
-	# A trapped signal ends a wait early with a status above 128, and the child may be running or just
-	# done: ask again until the answer is the child's own (127 means it is gone, which is a failure).
-	while [ "$rc" -gt 128 ]; do
-		rc=0
-		wait "$WAIT_PID" || rc=$?
-	done
-	trap - INT TERM
-	MERGED_OID=$(cat "$out")
-	rm -f "$out"
-	[ "$rc" = 0 ] || exit 1
 }
 
 create_tag() {
@@ -369,8 +346,7 @@ real_run() {
 	else
 		gh pr merge "$pr" --auto --rebase || die "Could not turn on auto-merge for #$pr."
 	fi
-	wait_for_merge "$pr" "$from" "$RELEASE_PR_BRANCH"
-	merged=$MERGED_OID
+	merged=$(bash "$WAIT" "$pr" "$from" "$RELEASE_PR_BRANCH")
 	verify_merged "$merged" "$from"
 	[ -z "$TAG" ] || create_tag
 	set_output tag "$TAG"
@@ -421,8 +397,6 @@ main() {
 }
 
 NOTES=""
-MERGED_OID=""
-WAIT_PID=""
 A_TREE=""
 B_TREE=""
 main "$@"
