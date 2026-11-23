@@ -181,6 +181,7 @@ jobs:
           CHANGELOG_DATE: ${{ needs.guard.outputs.changelog_date }}
           # The App token lives one hour from the mint. The wait must end, and its cleanup and the check
           # of the merged commits must run, while the token still works: 3000 seconds leaves ten minutes.
+          # The ten minutes also cover the setup before the wait (the checkouts and the script's checks).
           WAIT_DEADLINE: "3000"
           GH_TOKEN: ${{ steps.app.outputs.token }}
           TAG_TOKEN: ${{ github.token }}
