@@ -383,6 +383,38 @@ eq "locked index: no temporary file left beside CHANGELOG.md" "" "$(find "$FX" -
 # The release is written beside CHANGELOG.md and renamed over it, so a failed
 # write leaves the original whole: with the directory unwritable no temporary
 # file can be made, and nothing may change.
+# Two faults in a row: git rm fails (locked index), then the restore of CHANGELOG.md fails too. The
+# saved original must survive and its path must be printed, or CHANGELOG.md keeps the release while
+# the fragments remain, and a retry cuts the entries twice. A stub mv, first on PATH, lets the first
+# call (the rename of the release over CHANGELOG.md) through and fails every later one.
+newfx double-fault
+frag 3-a.md Added '- Add a.'
+(cd "$FX" && fxgit add -A && fxgit commit -q -m frags)
+BEFORE=$(cat "$FX/CHANGELOG.md")
+STUB="$T/stub-mv"
+mkdir -p "$STUB"
+REAL_MV=$(command -v mv)
+cat >"$STUB/mv" <<EOF
+#!/usr/bin/env bash
+n=\$(cat "$STUB/count" 2>/dev/null || echo 0)
+echo \$((n + 1)) >"$STUB/count"
+if [ "\$n" -ge 1 ]; then echo "stub mv: injected failure" >&2; exit 1; fi
+exec "$REAL_MV" "\$@"
+EOF
+chmod +x "$STUB/mv"
+: >"$FX/.git/index.lock"
+run env PATH="$STUB:$PATH" CHANGELOG_DATE=2026-01-02 bash "$ASSEMBLE" --write 1.2.3
+rm -f "$FX/.git/index.lock"
+if [ "$RC" -ne 0 ]; then ok "double fault: the write is refused"; else bad "double fault: the write is refused" "exit was 0"; fi
+eq "double fault: the fragment is still there" 1 "$(nfrags)"
+SAVED=$(printf '%s\n' "$OUT" | sed -n 's/.*original is kept at \(.*\); copy it over.*/\1/p' | head -n 1)
+if [ -n "$SAVED" ] && [ -f "$SAVED" ]; then
+	eq "double fault: the printed path holds the original CHANGELOG.md" "$BEFORE" "$(cat "$SAVED")"
+	rm -rf "$(dirname "$SAVED")"
+else
+	bad "double fault: the printed path holds the original CHANGELOG.md" "no kept file named in: $OUT"
+fi
+
 newfx write-atomic
 frag 3-a.md Added '- Add a.'
 (cd "$FX" && fxgit add -A && fxgit commit -q -m frags)
