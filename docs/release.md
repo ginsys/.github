@@ -313,8 +313,9 @@ caller's repository: the files, the notes and the tag all come from the run and 
    fails for any other reason also refuses, because it cannot tell.
 2. A real run refuses unless the tag in the repository names `sha`. An annotated tag is peeled once.
 3. It writes the notes from `changelog-notes` and appends the footer. Missing or empty notes fail. A
-   GitHub release body holds at most 125,000 characters, so notes over 120,000 bytes are replaced by one
-   line that links the release's section in `CHANGELOG.md` at the tag, and the footer follows it.
+   GitHub release body holds at most 125,000 characters, so when the notes and the footer together pass
+   120,000 bytes, the notes are replaced by one line that links the release's section in `CHANGELOG.md`
+   at the tag, and the footer follows it. A footer too long even for that fails the step.
 4. It downloads every `release-*` artifact into `dist/` and fails when there is none: a release with no
    files is a mistake. Two artifacts that hold a file of the same name overwrite each other without a
    message, so the caller's jobs give their files distinct names. `write-sums.sh` then writes `SHA256SUMS` over the files in `dist/`, whether the

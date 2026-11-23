@@ -5,8 +5,8 @@
 #   publish-guard.sh absent <tag>                  the tag has no release yet
 #   publish-guard.sh tagged <tag> <sha>            the tag in the repository names the commit <sha>
 #   publish-guard.sh notes <notes> <footer> <out> [<changelog url>]
-#                                                  write the release notes: <notes>, then <footer>; notes over
-#                                                  NOTES_MAX bytes become a pointer to <changelog url>
+#                                                  write the release notes: <notes>, then <footer>; a body over
+#                                                  BODY_MAX bytes links <changelog url> in place of the notes
 #   publish-guard.sh prerelease <tag>              exit 0 for a pre-release tag, 1 for a stable one
 #
 # `absent` and `tagged` call `gh api` for $GITHUB_REPOSITORY and need GH_TOKEN. A tag is vMAJOR.MINOR.PATCH,
@@ -82,12 +82,13 @@ cmd_tagged() {
 }
 
 # The notes are the release's changelog section; a release with none is a mistake. The footer is a fixed
-# text of the caller's. A GitHub release body holds at most 125,000 characters, so notes over NOTES_MAX
-# bytes (bytes are never fewer than characters) become a pointer to the section in CHANGELOG.md at the tag,
-# whose URL the caller passes.
-NOTES_MAX=120000
+# text of the caller's. A GitHub release body holds at most 125,000 characters, so a body over BODY_MAX
+# bytes (bytes are never fewer than characters) puts a pointer to the section in CHANGELOG.md at the tag,
+# whose URL the caller passes, in place of the notes. A body that is still too long fails.
+BODY_MAX=120000
+footer_block() { if [ -n "${1//[[:space:]]/}" ]; then printf '\n%s\n' "$1"; fi; }
 cmd_notes() {
-	local in=$1 footer=$2 out=$3 url=${4:-}
+	local in=$1 footer=$2 out=$3 url=${4:-} size
 	if [ ! -f "$in" ]; then
 		error "the release notes $in are missing."
 		exit 1
@@ -96,21 +97,29 @@ cmd_notes() {
 		error "the release notes $in are empty."
 		exit 1
 	fi
-	local size
-	size=$(wc -c <"$in")
-	if [ "$size" -gt "$NOTES_MAX" ] && [ -z "$url" ]; then
-		error "the release notes are $size bytes, over the $NOTES_MAX a release body can hold, and no CHANGELOG.md URL was given."
-		exit 1
-	fi
 	{
-		if [ "$size" -gt "$NOTES_MAX" ]; then
-			printf 'The notes of this release are too long for a GitHub release (%s bytes). They are its section in CHANGELOG.md:\n%s\n' "$size" "$url"
-		else
-			cat "$in"
-			if [ -n "$(tail -c 1 "$in")" ]; then echo; fi # the last line of the notes ends in a newline
-		fi
-		if [ -n "${footer//[[:space:]]/}" ]; then printf '\n%s\n' "$footer"; fi
+		cat "$in"
+		if [ -n "$(tail -c 1 "$in")" ]; then echo; fi # the last line of the notes ends in a newline
+		footer_block "$footer"
 	} >"$out.new"
+	size=$(wc -c <"$out.new")
+	if [ "$size" -gt "$BODY_MAX" ]; then
+		if [ -z "$url" ]; then
+			rm -f "$out.new"
+			error "the release body is $size bytes, over the $BODY_MAX a release can hold, and no CHANGELOG.md URL was given."
+			exit 1
+		fi
+		{
+			printf 'The notes of this release are too long for a GitHub release (%s bytes). They are its section in CHANGELOG.md:\n%s\n' "$size" "$url"
+			footer_block "$footer"
+		} >"$out.new"
+		size=$(wc -c <"$out.new")
+		if [ "$size" -gt "$BODY_MAX" ]; then
+			rm -f "$out.new"
+			error "the release body is $size bytes even with the notes replaced by a link: the footer is too long."
+			exit 1
+		fi
+	fi
 	mv "$out.new" "$out"
 }
 
