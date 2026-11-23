@@ -23,8 +23,9 @@ Fixed
 - A malformed database DSN no longer reaches the error text. Fixes owner/repo#587.
 ```
 
-`CHANGELOG.md` keeps a `## [Unreleased]` heading. Lines written under it by hand stay there until
-a release, and the release keeps them, first, in the section it cuts.
+`CHANGELOG.md` keeps a `## [Unreleased]` heading. Write nothing under it by hand: use a fragment.
+Lines already there stay until a release, and the release keeps them, first, in the section it cuts,
+so a `### Fixed` written by hand and one from a fragment can both appear in one section.
 
 ### What `changelog-assemble.sh` does
 
@@ -57,12 +58,20 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, labeled, unlabeled]
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 jobs:
   changelog-fragment:
     permissions:
       contents: read
     uses: ginsys/.github/.github/workflows/changelog-fragment.yml@<40-character commit> # <date>
 ```
+
+The reusable workflow sets no `concurrency` of its own: inside a called workflow `github.workflow` is the
+caller's name, so a group built from it would equal the caller's and GitHub would cancel the run as a
+deadlock. The caller owns the group, as above. A test fails any reusable workflow here whose group is
+built from `github.workflow`.
 
 The check gives one verdict:
 
