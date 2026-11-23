@@ -309,6 +309,29 @@ verify_merged() {
 	RELEASED=$a
 }
 
+# wait_for_merge <pr> <tip> <branch>: runs wait-merge.sh and sets MERGED_OID. A runner that cancels a run
+# signals this script alone, never its children, so a signal is passed on to the wait, which cancels
+# the release, and this script waits for it to finish: a pull request that merged anyway still gets its
+# commits checked and its tag.
+wait_for_merge() {
+	local out rc=0
+	out=$(mktemp)
+	bash "$WAIT" "$1" "$2" "$3" >"$out" &
+	WAIT_PID=$!
+	trap 'kill -s TERM "$WAIT_PID" 2>/dev/null || true' INT TERM
+	wait "$WAIT_PID" || rc=$?
+	# A trapped signal ends a wait early with a status above 128, and the child may be running or just
+	# done: ask again until the answer is the child's own (127 means it is gone, which is a failure).
+	while [ "$rc" -gt 128 ]; do
+		rc=0
+		wait "$WAIT_PID" || rc=$?
+	done
+	trap - INT TERM
+	MERGED_OID=$(cat "$out")
+	rm -f "$out"
+	[ "$rc" = 0 ] || exit 1
+}
+
 create_tag() {
 	local i cmd="gh api -X POST repos/$GITHUB_REPOSITORY/git/refs -f ref=refs/tags/$TAG -f sha=$RELEASED"
 	for i in 1 2 3; do
@@ -346,7 +369,8 @@ real_run() {
 	else
 		gh pr merge "$pr" --auto --rebase || die "Could not turn on auto-merge for #$pr."
 	fi
-	merged=$(bash "$WAIT" "$pr" "$from" "$RELEASE_PR_BRANCH")
+	wait_for_merge "$pr" "$from" "$RELEASE_PR_BRANCH"
+	merged=$MERGED_OID
 	verify_merged "$merged" "$from"
 	[ -z "$TAG" ] || create_tag
 	set_output tag "$TAG"
@@ -397,6 +421,8 @@ main() {
 }
 
 NOTES=""
+MERGED_OID=""
+WAIT_PID=""
 A_TREE=""
 B_TREE=""
 main "$@"
