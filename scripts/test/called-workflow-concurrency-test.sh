@@ -34,20 +34,30 @@ bad() {
 
 # is_called <file>: true when the workflow has a workflow_call trigger. `on` is a map, a list or a
 # string, and a bare `workflow_call:` key is a null value, so has() is used and not "!= null".
+#   returns 0 called, 1 not called, 2 yq could not read the file.
 is_called() {
-	[ "$(yq '.on | ((tag == "!!map" and has("workflow_call")) or (tag == "!!seq" and contains(["workflow_call"])) or (tag == "!!str" and . == "workflow_call"))' "$1")" = true ]
+	local out
+	out=$(yq '.on | ((tag == "!!map" and has("workflow_call")) or (tag == "!!seq" and contains(["workflow_call"])) or (tag == "!!str" and . == "workflow_call"))' "$1") || return 2
+	[ "$out" = true ]
 }
 
 # groups <file>: every concurrency group string of a reusable workflow, one per line; nothing when the
-# file is not reusable.
+# file is not reusable. Returns 2 when yq could not read the file: a file that cannot be read is never
+# a file that is clean.
 groups() {
-	is_called "$1" || return 0
-	yq '[.concurrency, .jobs[].concurrency] | .[] | select(. != null) | (.group // .)' "$1"
+	local rc=0
+	is_called "$1" || rc=$?
+	[ "$rc" -ne 1 ] || return 0
+	[ "$rc" -eq 0 ] || return 2
+	yq '[.concurrency, .jobs[].concurrency] | .[] | select(. != null) | (.group // .)' "$1" || return 2
 }
 
-# offending <file>: the groups that contain github.workflow.
+# offending <file>: the groups that contain github.workflow, or one UNREADABLE line when the file does
+# not parse.
 offending() {
-	groups "$1" | grep -F 'github.workflow' || true
+	local g
+	g=$(groups "$1") || { printf 'UNREADABLE %s: yq cannot parse it\n' "$(basename "$1")"; return 0; }
+	grep -F 'github.workflow' <<<"$g" || true
 }
 
 # scan_tree <root>: "<file>: <group>" for every offending workflow under <root>/.github/workflows,
@@ -115,6 +125,13 @@ jobs:
     runs-on: ubuntu-latest
     concurrency: ${{ github.workflow }}
     steps: [{run: "true"}]')"
+out=$(fixture malformed.yml "on: [workflow_call
+$GROUP
+$BODY")
+case "$out" in
+*UNREADABLE*) ok "control: a workflow that does not parse is reported, never passed" ;;
+*) bad "control: a workflow that does not parse is reported, never passed" "got: ${out:-nothing}" ;;
+esac
 passes "control: a fixed prefix passes" \
 	"$(fixture prefix.yml "on:
   workflow_call:
