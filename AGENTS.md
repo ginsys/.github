@@ -13,7 +13,10 @@ go-kure/.github. Read `README.md` first: it states what lives here and what live
   Keep the wrapper in step with go-kure's `.github/workflows/pr-review.yml` when bumping that pin.
 - **Every third-party action is pinned to a 40-character commit SHA**, tag as a trailing comment.
   `ci.yml`'s `action-pins` job enforces it. First-party reusable *workflows* (`go-kure/...` and
-  `ginsys/...` under `.github/workflows/`) may use `@main`; composite actions may not.
+  `ginsys/...` under `.github/workflows/`) may use `@main`; composite actions may not. **A
+  reusable workflow that reads a secret or can push is pinned by commit SHA** with the date as a
+  trailing comment, never `@main` (`release.yml`): a change merged here would otherwise run in every
+  caller's next release with no pull request there to read.
 - **`apply` never runs from a workstation.** Local tooling audits only (`mise run settings-audit`).
   Applying goes through the `settings.yml` dispatch with `SETTINGS_PAT`, after reading the audit
   and snapshotting the labels of every managed repo.
@@ -47,6 +50,9 @@ mistake.
   pr-review.yml       reusable Claude PR review (workflow_call), runs upstream's action on ginsys runners
   ci.yml              this repo's checks; `checks` aggregates them
   changelog-fragment.yml  reusable PR check that a change carries a changelog fragment (workflow_call)
+  release.yml         reusable release: guard and preview with no secret, real run opens the release PR and tags
+  release-dry-run.yml a dry run of release.yml on this repo's own VERSION and CHANGELOG.md
+VERSION, CHANGELOG.md  the start of this repo's own versioning; nothing is released from here yet
 docs/
   release.md          the release standard: interfaces, scripts, how callers use them
 governance/
@@ -57,7 +63,7 @@ standards/
 scripts/
   tracker-audit.sh
   release/            changelog assembler, fragment check, release.sh and wait-merge.sh
-  test/               fixture tests: tracker-audit-test.sh, changelog-test.sh, release-test.sh, called-workflow-concurrency-test.sh, pr-review-proxy-url-test.sh
+  test/               fixture tests: tracker-audit-test.sh, changelog-test.sh, release-test.sh, release-workflow-test.sh, called-workflow-concurrency-test.sh, pr-review-proxy-url-test.sh
 profile/README.md     organization profile
 renovate.json         extends go-kure's shared preset
 mise.toml             tool pins and the tasks ci.yml runs

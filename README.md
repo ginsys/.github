@@ -44,9 +44,12 @@ onboarding hits the same three walls until it too goes public.
 | `.github/workflows/tracker-audit-self.yml` | This repo's weekly caller of it |
 | `.github/workflows/pr-review.yml` | Reusable Claude PR review: go-kure's job wrapper on ginsys runners, upstream's `pr-review-threads` action pinned |
 | `.github/workflows/changelog-fragment.yml` | Reusable PR check that a change carries a changelog fragment (`docs/release.md`) |
+| `.github/workflows/release.yml` | Reusable release: checks and previews with no secret, and for a real run cuts the release pull request and makes the tag. Pinned by commit SHA (`docs/release.md`) |
+| `.github/workflows/release-dry-run.yml` | A dry run of it on this repo's own `VERSION` and `CHANGELOG.md`, with a before-and-after comparison; releases nothing |
+| `VERSION`, `CHANGELOG.md` | The start of this repository's own versioning; nothing is released from here yet |
 | `scripts/tracker-audit.sh` | The audit itself, fixture-tested by `scripts/test/tracker-audit-test.sh` |
-| `scripts/release/` | Changelog assembler and fragment check, the release script and the merge wait, fixture-tested by `scripts/test/changelog-test.sh` and `scripts/test/release-test.sh` |
-| `docs/release.md` | The release standard: fragments, the PR check and the release script (more as the workflows land) |
+| `scripts/release/` | Changelog assembler and fragment check, the release script and the merge wait, fixture-tested by `scripts/test/changelog-test.sh` and `scripts/test/release-test.sh`; the release workflow's structure by `scripts/test/release-workflow-test.sh` |
+| `docs/release.md` | The release standard: fragments, the PR check, the release script and the release workflow (more as the workflows land) |
 | `.github/workflows/ci.yml` | This repo's own checks: lint, tests, action pins |
 | `profile/README.md` | Organization profile |
 
