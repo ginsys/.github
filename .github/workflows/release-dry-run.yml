@@ -1,0 +1,81 @@
+name: Release dry run
+
+# Proves release.yml here, with no secret: a dry run of `start-next-minor` against this repository's own
+# VERSION and CHANGELOG.md, and a comparison of its tags, release branches and release pull requests
+# before and after, which must not differ. It is not part of the `checks` aggregator: the called workflow
+# asks for `contents: write`, which a pull request from a fork never has, so on a fork this workflow does
+# not start. Nothing releases from this repository (docs/release.md).
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .github/workflows/release-dry-run.yml
+      - scripts/release/**
+      - VERSION
+      - CHANGELOG.md
+      - changelog.d/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  before:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      refs: ${{ steps.snapshot.outputs.refs }}
+    steps:
+      - name: Record the tags, release branches and release pull requests
+        id: snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/" --jq '.[] | "tag " + .ref + " " + .object.sha'
+            gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/heads/release/" --jq '.[] | "branch " + .ref + " " + .object.sha'
+            gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,headRefName --jq '.[] | select(.headRefName | startswith("release/")) | "pr " + (.number | tostring) + " " + .headRefName'
+          } | sort >refs.txt
+          echo "records: $(wc -l <refs.txt)"
+          cat refs.txt
+          echo "refs=$(sha256sum <refs.txt | cut -d' ' -f1)" >>"$GITHUB_OUTPUT"
+
+  dry-run:
+    needs: before
+    permissions:
+      contents: write
+    uses: ./.github/workflows/release.yml
+    with:
+      action: start-next-minor
+      dry_run: true
+
+  after:
+    needs: [before, dry-run]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Compare with the record from before
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ needs.before.outputs.refs }}
+        run: |
+          {
+            gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/" --jq '.[] | "tag " + .ref + " " + .object.sha'
+            gh api --paginate "repos/$GITHUB_REPOSITORY/git/matching-refs/heads/release/" --jq '.[] | "branch " + .ref + " " + .object.sha'
+            gh pr list --repo "$GITHUB_REPOSITORY" --state open --json number,headRefName --jq '.[] | select(.headRefName | startswith("release/")) | "pr " + (.number | tostring) + " " + .headRefName'
+          } | sort >refs.txt
+          echo "records: $(wc -l <refs.txt)"
+          cat refs.txt
+          after=$(sha256sum <refs.txt | cut -d' ' -f1)
+          if [ "$after" != "$BEFORE" ]; then
+            echo "::error::The dry run changed the tags, release branches or release pull requests (digest $BEFORE before, $after after)."
+            exit 1
+          fi
+          echo "Unchanged: digest $after."

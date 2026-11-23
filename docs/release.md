@@ -165,3 +165,91 @@ requests: `git ls-remote --heads origin 'release/*'` and
 
 The same second state follows if another change merges in the seconds after the last poll: the
 release commit sits on a newer tip and the script makes no tag.
+
+## The release workflow
+
+`release.yml` is a reusable workflow that runs the release script on the caller's repository. A caller
+has the workflow dispatch with the two inputs below and one job that calls it:
+
+```yaml
+name: Release
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        type: choice
+        required: true
+        default: release
+        options: [release, release-as-beta, release-as-rc, release-as-stable, start-next-minor, start-next-major, skip-prerelease-number]
+      dry_run:
+        type: boolean
+        default: true
+permissions:
+  contents: read
+jobs:
+  release:
+    permissions:
+      contents: write
+    uses: ginsys/.github/.github/workflows/release.yml@<40-character commit> # <date>
+    with:
+      action: ${{ inputs.action }}
+      dry_run: ${{ inputs.dry_run }}
+```
+
+The caller passes no secret: `release` reads the two secrets from the environment `release` of the
+caller's repository.
+
+| | |
+|---|---|
+| Inputs | `action` (one of the seven actions, required), `dry_run` (default `true`) |
+| Secrets, both optional, used by a real run only, read from the environment `release` | `RELEASE_APP_ID`, `RELEASE_APP_PRIVATE_KEY`: the App `ginsys-release-bot` |
+| Outputs | `tag` (the tag the run makes; in a dry run, the tag a real run would make; empty for an action that only moves `VERSION`), `version` (the tag without `v`), `sha` (the commit the tag names; in a dry run, the dispatched commit) |
+| Grants | `contents: write` on the calling job (a called workflow can only narrow what it is given) |
+
+**Pin it by commit SHA, never `@main`.** The real run holds the App key and can push a branch and make a
+tag. With `@main`, a change merged here would run in every repository's next release with no pull request
+there to read. The pin moves by a pull request in the caller, and a dry run after the move is the proof.
+This repository has no tags yet, so the first pins are moved by hand.
+
+**Two jobs.**
+
+1. `guard` has no secret and no environment, and `contents: read`. It runs `release.sh --check` from this
+   repository's scripts at the workflow's own commit, which refuses what the script refuses and prints
+   the plan. It uploads the release notes as the run artifact `changelog-notes` (for an action that makes
+   a tag), in a dry run too. A dry run ends here.
+2. `release` runs only for a real run, with the environment `release`, `contents: write` and a limit of
+   120 minutes. It mints the App token for the calling repository alone, checks out the dispatched commit,
+   and runs `release.sh` with `DRY_RUN=0`: the pull request and the wait use the App token, and the tag is
+   made with the workflow token, so that it starts no workflow. The changelog date is the one `guard` read,
+   so a run that crosses midnight cannot change the heading. Only one `release` job runs per repository
+   (group `release-<repository>`); it never cancels a run in progress.
+
+**What the owner sets up, once per repository.**
+
+- The App `ginsys-release-bot`, installed on the callers only, with exactly Contents (read and write),
+  Pull requests (read and write) and Metadata (read), and no bypass of any ruleset.
+- The environment `release` in the repository, restricted to the default branch, holding the two secrets.
+- Auto-merge allowed in the repository. With a merge queue the script turns on `--auto`; without one,
+  `--auto --rebase`.
+
+**A busy repository should hold other merges while a release runs.** The release pull request waits for
+its checks (about 25 minutes in a large repository). Another merge in that time moves the default
+branch, and the run then closes the pull request and makes no tag: nothing reached the default branch,
+and a rerun cuts a new release. Nothing enforces a quiet window.
+
+**What only the first real run settles.** Nothing here has run with the App or the environment. Whether
+the environment's secrets reach a called workflow, whether a pull request opened by the App starts the
+checks, whether the App may turn on auto-merge with the three permissions above (a refusal is a 403
+whose `X-Accepted-GitHub-Permissions` header names what the call wanted), what a rebase merge makes of
+the two commits, and a real merge queue. A private repository's caller probably also needs
+`pull-requests: read` on the calling job, because `guard` lists open pull requests with the workflow
+token; the dry run of this public repository cannot show that. The action `create-github-app-token` takes
+the App's numeric id as `app-id`, which it marks deprecated in favour of `client-id`; the secret keeps
+its name until the owner decides.
+
+**`release-dry-run.yml`** calls `release.yml` here with `dry_run: true` and the action
+`start-next-minor`, on this repository's own `VERSION` and `CHANGELOG.md`. A job before it records the
+tags, the `release/*` branches and the open release pull requests, and a job after it compares them:
+any difference fails. It runs on pull requests that touch the release files, and is not one of the
+required checks, because a pull request from a fork has a read-only token and the called workflow asks
+for `contents: write`. Releases of this repository itself are not made.
