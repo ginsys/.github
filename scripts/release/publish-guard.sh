@@ -55,15 +55,18 @@ tag_object() {
 }
 
 cmd_tagged() {
-	local tag=$1 sha=$2 type obj
+	local tag=$1 sha=$2 got type obj
 	need_tag "$tag"
 	if ! [[ $sha =~ ^[0-9a-f]{40}$ ]]; then
 		error "'$sha' is not a full commit SHA."
 		exit 1
 	fi
-	read -r type obj <<<"$(tag_object "ref/tags/$tag")"
+	# `|| exit 1`: tag_object runs in a command substitution, where its own exit ends only that subshell.
+	got=$(tag_object "ref/tags/$tag") || exit 1
+	read -r type obj <<<"$got"
 	if [ "$type" = tag ]; then
-		read -r type obj <<<"$(tag_object "tags/$obj")"
+		got=$(tag_object "tags/$obj") || exit 1
+		read -r type obj <<<"$got"
 	fi
 	if [ "$type" != commit ]; then
 		error "the tag $tag names a $type, not a commit."
