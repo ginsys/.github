@@ -202,7 +202,8 @@ fi
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/changelog-assemble.XXXXXX")
 next=
-trap 'rm -rf "$tmp"; [ -z "$next" ] || rm -f "$next"' EXIT
+keep=
+trap '[ -n "$keep" ] || rm -rf "$tmp"; [ -z "$next" ] || rm -f "$next"' EXIT
 
 gen=$tmp/generated
 : >"$gen"
@@ -262,11 +263,16 @@ cp -p "$CHANGELOG" "$tmp/original"
 mv -f "$next" "$CHANGELOG"
 next=
 if [ "${#tracked[@]}" -gt 0 ] && ! git rm -q -f -- "${tracked[@]}"; then
-	next=$(mktemp "$ROOT/$CHANGELOG.XXXXXX")
-	cp -p "$tmp/original" "$next"
-	mv -f "$next" "$CHANGELOG"
-	next=
-	echo "ERROR git rm failed (a locked index?): $CHANGELOG restored, no fragment removed" >&2
+	# The restore may fail too (no space, no permission): then the saved original is the only copy
+	# of CHANGELOG.md as it was, so the trap keeps it and the message names it.
+	if next=$(mktemp "$ROOT/$CHANGELOG.XXXXXX") && cp -p "$tmp/original" "$next" && mv -f "$next" "$CHANGELOG"; then
+		next=
+		echo "ERROR git rm failed (a locked index?): $CHANGELOG restored, no fragment removed" >&2
+	else
+		# shellcheck disable=SC2034 # read by the EXIT trap, which shellcheck does not follow
+		keep=1
+		echo "ERROR git rm failed and the restore failed too: the original is kept at $tmp/original; copy it over $CHANGELOG, then remove the directory $tmp" >&2
+	fi
 	exit 1
 fi
 if [ "${#loose[@]}" -gt 0 ]; then
