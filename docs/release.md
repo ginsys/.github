@@ -204,15 +204,17 @@ jobs:
 ```
 
 The caller passes the two secrets by name, never with `secrets: inherit`, so no other secret reaches the
-shared workflow. A secret the caller does not pass reads as an empty string in `release`, with no error
-there: only a real run's step "Mint the App token" shows it, and a dry run never mints the token, so a
-dry run cannot show a missing `secrets:` block. The values can live in the caller's environment `release`:
-GitHub resolves a secret passed by name from there too. No real run has yet shown that with the App.
+shared workflow. A secret the caller does not pass reads as an empty string in the called workflow, with
+no error there: only a real run's step "Mint the App token" shows it, and a dry run never mints the
+token, so a dry run cannot show a missing `secrets:` block. The values can be stored in the environment
+`release` of the caller's repository, which the called workflow's `release` job uses: GitHub's
+documentation says a secret passed by name may exist only in an environment. The calling job has no
+`environment:` of its own, and no real run has yet shown this with the App.
 
 | | |
 |---|---|
 | Inputs | `action` (one of the seven actions, required), `dry_run` (default `true`) |
-| Secrets, both optional, used by a real run only, passed by the caller by name (they may live in its environment `release`) | `RELEASE_APP_ID`, `RELEASE_APP_PRIVATE_KEY`: the App `ginsys-release-bot` |
+| Secrets, both optional, used by a real run only, passed by the caller by name (the values can be stored in the environment `release`; not yet shown by a real run) | `RELEASE_APP_ID`, `RELEASE_APP_PRIVATE_KEY`: the App `ginsys-release-bot` |
 | Outputs | `tag` (the tag the run makes; in a dry run, the tag a real run would make; empty for an action that only moves `VERSION`), `version` (the tag without `v`), `sha` (the commit the tag names; in a dry run, the dispatched commit) |
 | Grants | `contents: write` and `pull-requests: read` on the calling job (a called workflow can only narrow what it is given, so the run does not start without both). `guard` lists open pull requests with the workflow token |
 
@@ -272,8 +274,8 @@ and a rerun cuts a new release. Nothing enforces a quiet window.
 
 **What only the first real run settles.** The first real run, in a caller that passed no secret, failed
 at "Mint the App token": a secret reaches the called workflow only when the caller passes it, as the
-example above does. Nothing here has yet run with the App. Whether a pull request opened by the App
-starts the checks, whether the App may turn on auto-merge with the three permissions above (a refusal is a 403
+example above does. Nothing here has yet run with the App. Whether a secret passed by name resolves from
+the environment `release`, whether a pull request opened by the App starts the checks, whether the App may turn on auto-merge with the three permissions above (a refusal is a 403
 whose `X-Accepted-GitHub-Permissions` header names what the call wanted), what a rebase merge makes of
 the two commits, and a real merge queue. The action `create-github-app-token` takes
 the App's numeric id as `app-id`, which it marks deprecated in favour of `client-id`; the secret keeps
