@@ -338,7 +338,7 @@ picks up. A dry run builds for real, so it proves the build.
 |---|---|
 | Inputs | `tag` and `sha` (required), `go-version-file` (default `go.mod`), `node-version-file`, `pre-build` and `post-build` (all three empty by default) |
 | Grants | `contents: read` |
-| Runs | Go, then Node.js if `node-version-file` is set, then `pre-build` if set, then `goreleaser release --snapshot --clean` with `RELEASE_VERSION=<tag>` in the environment (GoReleaser pinned here to an exact version), then `post-build` if set, then `check-dist.sh` |
+| Runs | The release scripts are checked out into `.release-tools/` and listed in `.git/info/exclude`, so that directory never makes a binary built with `-buildvcs=true` record `vcs.modified=true`, then Go, then Node.js if `node-version-file` is set, then `pre-build` if set, then `goreleaser release --snapshot --clean` with `RELEASE_VERSION=<tag>` in the environment (GoReleaser pinned here to an exact version), then `post-build` if set, then `check-dist.sh` |
 
 **Files built outside GoReleaser.** A repository whose archives need something built first, such as a
 web bundle with `npm`, sets the three optional inputs; a caller that sets none gets the build above,

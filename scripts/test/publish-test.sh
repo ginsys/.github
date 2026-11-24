@@ -342,9 +342,10 @@ bgo_problems() {
 	bgo_hooks_problems "$f"
 }
 
-# bgo_hooks_problems <build-go.yml copy>: the three optional inputs and their steps.
+# bgo_hooks_problems <build-go.yml copy>: the three optional inputs and their steps, and the step that
+# keeps the checked-out release scripts out of git status.
 bgo_hooks_problems() {
-	local f=$1 n s g c p
+	local f=$1 n s g c p x r
 	for n in node-version-file pre-build post-build; do
 		[ "$(yq ".on.workflow_call.inputs.\"$n\".default" "$f")" = "" ] || echo "$n does not default to empty"
 	done
@@ -364,6 +365,15 @@ bgo_hooks_problems() {
 		i=$(yq ".jobs.build.steps | to_entries | .[] | select(.value.name == \"$1\") | .key" "$f")
 		[ -n "$i" ] && [ -n "$2" ] && [ "$i" -lt "$2" ]
 	}
+	x=$(yq '.jobs.build.steps | to_entries | .[] | select(.value.name == "Keep the release scripts out of git status") | .key' "$f")
+	[ -n "$x" ] || echo "no step keeps the release scripts out of git status"
+	r=$(yq '.jobs.build.steps[] | select(.name == "Keep the release scripts out of git status") | .run' "$f")
+	case "$r" in
+	*/.release-tools/*.git/info/exclude*) ;;
+	*) echo "the step does not write /.release-tools/ to .git/info/exclude" ;;
+	esac
+	bgo_before "Check out the release scripts" "$x" || echo "the release scripts are not excluded after their checkout"
+	bgo_before "Keep the release scripts out of git status" "$g" || echo "the release scripts are not excluded before GoReleaser"
 	bgo_before "Set up Go" "$g" || echo "Go is not set up before GoReleaser"
 	bgo_before "Set up Node.js" "$g" || echo "Node.js is not set up before GoReleaser"
 	bgo_before "Run the pre-build command" "$g" || echo "the pre-build command does not run before GoReleaser"
@@ -404,6 +414,11 @@ bgo_broken pre-before-go 's/(      # The command reaches the shell only.*?"\$PRE
 bgo_broken pre-before-node 's/(      # The command reaches the shell only.*?"\$PRE_BUILD"\n\n)//s; $b=$1; s/(      # package-manager-cache is off)/$b$1/' "pre-build command runs before Node.js is set up"
 bgo_broken pre-after-build 's/Run the pre-build command/XSWAPX/; s/Run the post-build command/Run the pre-build command/; s/XSWAPX/Run the post-build command/' "pre-build command does not run before GoReleaser"
 bgo_broken post-after-check 's/- name: Run the post-build command/- name: XSWAPX/; s/- name: Check the archives/- name: Run the post-build command/; s/- name: XSWAPX/- name: Check the archives/' "post-build command does not run before the archives are checked"
+bgo_broken exclude-renamed 's/Keep the release scripts out of git status/Another step/' "no step keeps the release scripts out of git status"
+bgo_broken exclude-wrong-path 's#/\.release-tools/ >>#/.other/ >>#' "does not write /.release-tools/ to .git/info/exclude"
+bgo_broken exclude-wrong-file 's#>> \.git/info/exclude#>> .gitignore#' "does not write /.release-tools/ to .git/info/exclude"
+bgo_broken exclude-before-checkout 's/Check out the release scripts/XSWAPX/; s/Keep the release scripts out of git status/Check out the release scripts/; s/XSWAPX/Keep the release scripts out of git status/' "not excluded after their checkout"
+bgo_broken exclude-after-build 's/Keep the release scripts out of git status/XSWAPX/; s/Check the archives/Keep the release scripts out of git status/; s/XSWAPX/Check the archives/' "not excluded before GoReleaser"
 
 out=$(bgo_problems "$BGO")
 if [ -z "$out" ]; then ok "build-go.yml keeps every rule"; else bad "build-go.yml keeps every rule" "$out"; fi
