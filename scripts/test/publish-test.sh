@@ -368,12 +368,10 @@ bgo_hooks_problems() {
 	x=$(yq '.jobs.build.steps | to_entries | .[] | select(.value.name == "Keep the release scripts out of git status") | .key' "$f")
 	[ -n "$x" ] || echo "no step keeps the release scripts out of git status"
 	r=$(yq '.jobs.build.steps[] | select(.name == "Keep the release scripts out of git status") | .run' "$f")
-	case "$r" in
-	*/.release-tools/*.git/info/exclude*) ;;
-	*) echo "the step does not write /.release-tools/ to .git/info/exclude" ;;
-	esac
+	[ "$r" = "echo /.release-tools/ >> .git/info/exclude" ] || echo "the step does not write /.release-tools/ to .git/info/exclude"
 	bgo_before "Check out the release scripts" "$x" || echo "the release scripts are not excluded after their checkout"
 	bgo_before "Keep the release scripts out of git status" "$g" || echo "the release scripts are not excluded before GoReleaser"
+	bgo_before "Keep the release scripts out of git status" "$(yq '.jobs.build.steps | to_entries | .[] | select(.value.name == "Run the pre-build command") | .key' "$f")" || echo "the release scripts are not excluded before the pre-build command"
 	bgo_before "Set up Go" "$g" || echo "Go is not set up before GoReleaser"
 	bgo_before "Set up Node.js" "$g" || echo "Node.js is not set up before GoReleaser"
 	bgo_before "Run the pre-build command" "$g" || echo "the pre-build command does not run before GoReleaser"
@@ -417,6 +415,8 @@ bgo_broken post-after-check 's/- name: Run the post-build command/- name: XSWAPX
 bgo_broken exclude-renamed 's/Keep the release scripts out of git status/Another step/' "no step keeps the release scripts out of git status"
 bgo_broken exclude-wrong-path 's#/\.release-tools/ >>#/.other/ >>#' "does not write /.release-tools/ to .git/info/exclude"
 bgo_broken exclude-wrong-file 's#>> \.git/info/exclude#>> .gitignore#' "does not write /.release-tools/ to .git/info/exclude"
+bgo_broken exclude-no-redirect 's#echo /\.release-tools/ >> \.git/info/exclude#echo /.release-tools/ .git/info/exclude#' "does not write /.release-tools/ to .git/info/exclude"
+bgo_broken exclude-after-pre-build 's/(      # The scripts sit inside.*?info\/exclude\n\n)//s; $b=$1; s/(      # An exact version, pinned here)/$b$1/' "not excluded before the pre-build command"
 bgo_broken exclude-before-checkout 's/Check out the release scripts/XSWAPX/; s/Keep the release scripts out of git status/Check out the release scripts/; s/XSWAPX/Keep the release scripts out of git status/' "not excluded after their checkout"
 bgo_broken exclude-after-build 's/Keep the release scripts out of git status/XSWAPX/; s/Check the archives/Keep the release scripts out of git status/; s/XSWAPX/Check the archives/' "not excluded before GoReleaser"
 
