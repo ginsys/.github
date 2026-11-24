@@ -71,6 +71,11 @@ jobs:
           sparse-checkout: scripts/release
           persist-credentials: false
 
+      # The scripts sit inside the caller's checkout, so git would list the directory as untracked and a
+      # binary built with -buildvcs=true would record vcs.modified=true.
+      - name: Keep the release scripts out of git status
+        run: echo /.release-tools/ >> .git/info/exclude
+
       - name: Set up Go
         uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7
         with:
