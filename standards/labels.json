@@ -63,9 +63,27 @@
       "repos": ["bronzeward", "parley"]
     },
     {
-      "name": "status/deferred",
-      "color": "#FEF2C0",
-      "description": "The owner put the decision or work off; revisit later",
+      "name": "do/now",
+      "color": "#E99695",
+      "description": "Current target: worked now",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "do/next",
+      "color": "#E99695",
+      "description": "Next after the current target; becomes do/now in time",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "do/later",
+      "color": "#E99695",
+      "description": "Valid, not scheduled; may be promoted to do/next",
+      "repos": ["bronzeward"]
+    },
+    {
+      "name": "do/deferred",
+      "color": "#E99695",
+      "description": "Deferred until a maintainer changes it; the issue says why",
       "repos": ["bronzeward"]
     },
     {

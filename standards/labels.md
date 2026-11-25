@@ -33,12 +33,14 @@ by the forge.
 | Category | Values | Rule |
 |---|---|---|
 | `type/` | `investigation`, `decision`, `specification`, `implementation`, `validation`, `bug`, `feature` | exactly one per issue |
-| `status/` | `in-progress`, `needs-review`, `needs-refinement`, `deferred` | `in-progress` and `needs-review` are mutually exclusive; `needs-refinement` may coexist with either; `deferred` (bronzeward only) marks work or a decision the owner put off, and the issue stays open |
+| `status/` | `in-progress`, `needs-review`, `needs-refinement` | `in-progress` and `needs-review` are mutually exclusive; `needs-refinement` may coexist with either |
+| `do/` | `now`, `next`, `later`, `deferred` (bronzeward only so far) | when an issue is worked, one per issue: `now` is the current target and is worked now; `next` follows it and becomes `now` in time; `later` is valid but not scheduled, and some become `next`; `deferred` stays deferred until a maintainer changes it, and the issue carries one written line saying why it was deferred |
 | `area/` | `api`, `database`, `secrets`, `compiler`, `publisher`, `operations`, `transport`, `observer`, `observability`, `design`, `docs`, `ci`, `store`, `dispatch`, `controller`, `adapters`, `workflow-automation` (`.github` only) | any number; open namespace (below) |
 | none | `dependencies`, `needs-human`, `unattended`, `security` | applied by Renovate to PRs; never chosen by a person |
 | none | `no-changelog` (bronzeward only so far) | put on a pull request by its author when the change needs no changelog fragment (CI, tests, docs-only); read by the shared changelog-fragment check (`docs/release.md`), which would otherwise fail the pull request |
 
-No `priority/` and no `effort/` in the shared taxonomy: milestones order the work. No
+No `priority/` and no `effort/` in the shared taxonomy: milestones order the work, and `do/` states
+what is scheduled, not how important an issue is. No
 `status/blocked`: blocking is expressed with GitHub's native issue dependencies, which the
 tracker audit reads. (opsmaster's imported `priority::`, `effort::` and `status::blocked` labels
 are the stated exception above, not additions to this rule.)
@@ -48,7 +50,7 @@ rename map turns GitHub's default `bug` and `enhancement` into them (a rename ke
 associations; a delete would not). They are used only once there is shipped behaviour to be
 defective or to extend.
 
-Colours are fixed per namespace (`type/` `#1D76DB`, `status/` `#FEF2C0`, `area/` `#5319E7`; the
+Colours are fixed per namespace (`type/` `#1D76DB`, `status/` `#FEF2C0`, `do/` `#E99695`, `area/` `#5319E7`; the
 Renovate labels keep go-kure's colours), so an author never chooses one. opsmaster's imported
 labels keep their own pre-existing per-label colours instead, per the exception above.
 
@@ -73,8 +75,9 @@ onboarded, widen the scope of the labels it shares rather than duplicating entri
 
 `.github` carries only the generic labels: `type/bug`, `type/feature`, the four Renovate
 labels and `area/workflow-automation`, which marks issues about the automation that moves work
-through review, CI, release and dependency flow. bronzeward and parley both use the full work-type and `status/` label set for their
-tracking workflow, except `status/deferred`, which only bronzeward declares so far; their `area/`
+through review, CI, release and dependency flow. bronzeward and parley both use the full work-type
+and `status/` label set for their tracking workflow; the `do/` labels are declared on bronzeward
+only so far, and another repo opts in at its own retriage. Their `area/`
 labels differ per repo and stay scoped to it. `type/bug` and
 `type/feature` are declared on every managed repo on purpose: where the targets are declared, the
 settings script *renames* GitHub's default `bug`/`enhancement` labels to them, which keeps issue
